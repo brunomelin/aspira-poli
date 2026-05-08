@@ -121,6 +121,12 @@ async def scrape_domain(page: Page, domain: str) -> dict:
     await page.goto(url, wait_until="domcontentloaded", timeout=30000)
     await page.wait_for_timeout(3000)
 
+    # Meta redireciona ?country=ALL pro country do visitor (BR via IP) mesmo
+    # com locale en-US. Forçamos via UI: click no dropdown country e seleciona
+    # All/Todos pra retornar ao escopo global da URL original.
+    if "view_all_page_id=" in url or "country=all" in url.lower() or "country=ALL" in url:
+        await _force_country_all(page, domain)
+
     total_ads = await _extract_ad_count(page, domain)
     advertisers = await _extract_advertisers(page, domain)
 
@@ -146,6 +152,49 @@ async def scrape_domain(page: Page, domain: str) -> dict:
         "anunciantes": advertisers,
         "anuncios": ads_data,
     }
+
+
+async def _force_country_all(page: Page, domain: str) -> None:
+    """Click no dropdown country (top-left) e seleciona 'All / Todos'.
+    Tolerante a falha — se locator não encontrar, segue com country atual."""
+    try:
+        # Dropdown country — Meta usa div[role=button] com texto do país.
+        # Tentamos múltiplos seletores: BR/Brasil/Brazil em ambos idiomas.
+        candidates = [
+            page.get_by_role("button", name=re.compile(r"^(Brazil|Brasil|BR)$")),
+            page.locator('div[role="button"]').filter(has_text=re.compile(r"^(Brazil|Brasil)$")),
+        ]
+        clicked = False
+        for cand in candidates:
+            try:
+                await cand.first.click(timeout=3000)
+                clicked = True
+                break
+            except PlaywrightTimeout:
+                continue
+        if not clicked:
+            logger.info("[%s] dropdown country não encontrado — segue com country atual", domain)
+            return
+
+        await page.wait_for_timeout(600)
+
+        # Search field do dropdown — escreve "All"/"Todos" pra filtrar a lista
+        try:
+            search = page.get_by_placeholder(re.compile(r"Pesquisar|Search", re.IGNORECASE))
+            await search.first.fill("All", timeout=2000)
+            await page.wait_for_timeout(400)
+        except PlaywrightTimeout:
+            pass
+
+        # Clica em "All" / "Todos" na lista
+        all_option = page.get_by_text(re.compile(r"^(All|Todos)$")).first
+        await all_option.click(timeout=4000)
+        await page.wait_for_timeout(2000)
+        logger.info("[%s] country forçado pra ALL via UI", domain)
+    except PlaywrightTimeout:
+        logger.warning("[%s] timeout ao forçar country=ALL — segue com country atual", domain)
+    except Exception as e:
+        logger.warning("[%s] erro ao forçar country=ALL: %s", domain, e)
 
 
 async def _extract_ad_count(page: Page, domain: str) -> int:
