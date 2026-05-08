@@ -194,23 +194,19 @@ async def _force_country_all(page: Page, domain: str) -> None:
 
         await page.wait_for_timeout(800)
 
-        # Listbox aparece após click. Search field interno aceita typing.
+        # Modal "Selecionar país" abriu — click direto em "Tudo" (PT) ou "All" (EN).
+        # Meta renderiza em PT pra IP BR mesmo com locale=en-US (i18n da UI ≠
+        # country picker). NÃO digitar no search global (caímos no search de
+        # anunciantes da Library, não no search do modal de país).
+        # role="radio" — modal de país usa radio buttons, um por país.
+        all_option = page.get_by_role("radio", name=re.compile(r"^(Tudo|All)$"))
         try:
-            search = page.locator('input[type="search"], input[placeholder*="Pesquisar" i], input[placeholder*="Search" i]')
-            await search.first.fill("All", timeout=2500)
-            await page.wait_for_timeout(500)
+            await all_option.first.click(timeout=4000)
         except PlaywrightTimeout:
-            # Sem search input — keyboard fallback
-            try:
-                await page.keyboard.type("All", delay=50)
-                await page.wait_for_timeout(500)
-            except Exception:
-                pass
-
-        # Clica em "All" na listbox visível (option role)
-        # Meta usa <div role="option"> com texto "All" no item
-        all_option = page.locator('[role="option"]').filter(has_text=re.compile(r"^(All|Todos)$"))
-        await all_option.first.click(timeout=4000)
+            # Fallback: text-based dentro do modal "Selecionar país"
+            modal = page.locator('div').filter(has_text=re.compile(r"^Selecionar país$|^Select country$")).last
+            all_text = modal.get_by_text(re.compile(r"^(Tudo|All)$"))
+            await all_text.first.click(timeout=4000)
         await page.wait_for_timeout(2500)
         logger.info("[%s] country forçado pra ALL via UI", domain)
     except PlaywrightTimeout:
