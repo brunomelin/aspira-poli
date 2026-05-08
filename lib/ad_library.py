@@ -211,15 +211,50 @@ async def _force_country_all(page: Page, domain: str, original_url: str) -> None
             modal = page.locator('div').filter(has_text=re.compile(r"^Selecionar país$|^Select country$")).last
             all_text = modal.get_by_text(re.compile(r"^(Tudo|All)$"))
             await all_text.first.click(timeout=4000)
-        await page.wait_for_timeout(2000)
-        logger.info("[%s] 'Tudo' clicado no country picker — cookie atualizado", domain)
+        await page.wait_for_timeout(2500)
+        logger.info("[%s] 'Tudo' selecionado no country picker", domain)
 
-        # Recarrega a URL original — agora Meta tem cookie de preferência ALL e
-        # vai respeitar o country=ALL da URL (não redireciona pra BR).
-        # Reaproveita filtros (page_id, etc) sem precisar refazer via UI.
-        logger.info("[%s] recarregando URL com country=ALL...", domain)
-        await page.goto(original_url, wait_until="domcontentloaded", timeout=30000)
-        await page.wait_for_timeout(3000)
+        # Após mudar country, Meta reseta a categoria de anúncio pra um default
+        # restrito (ex: "Temas, eleições ou política"). Re-seleciona "Todos os
+        # anúncios" pra voltar ao escopo amplo.
+        try:
+            # Categoria dropdown: combobox com texto da categoria atual.
+            # Filtro por has_text inclui "Categoria" (fallback se Meta resetou
+            # pra valor restrito) ou "Todos os anúncios" (se já está OK).
+            category_dropdown = page.locator(
+                'div[role="combobox"][aria-haspopup="listbox"]'
+            ).filter(
+                has_text=re.compile(r"Categoria|Categories|Todos os anúncios|All ads|Temas|Issues", re.IGNORECASE)
+            )
+            await category_dropdown.first.click(timeout=3000)
+            await page.wait_for_timeout(600)
+            all_ads = page.get_by_role("radio", name=re.compile(r"^(Todos os anúncios|All ads)$"))
+            await all_ads.first.click(timeout=3000)
+            await page.wait_for_timeout(1500)
+            logger.info("[%s] categoria 'Todos os anúncios' re-selecionada", domain)
+        except PlaywrightTimeout:
+            logger.info("[%s] categoria já está em 'Todos os anúncios' (ou dropdown mudou)", domain)
+
+        # Re-submeter a busca clicando em "Pesquise esta frase exata" no dropdown
+        # do search input. Sem isso, Meta deixa state UI atualizado mas não
+        # dispara nova query — resultados continuam vazios.
+        try:
+            search_input = page.locator('input[type="search"]').first
+            await search_input.click(timeout=3000)
+            await page.wait_for_timeout(500)
+            exact = page.get_by_text(re.compile(r"^Pesquise esta frase exata$|^Search this exact phrase$", re.IGNORECASE))
+            await exact.first.click(timeout=3000)
+            await page.wait_for_timeout(2500)
+            logger.info("[%s] busca re-submetida via 'Pesquise esta frase exata'", domain)
+        except PlaywrightTimeout:
+            # Fallback: Enter no search input
+            try:
+                await search_input.focus(timeout=2000)
+                await page.keyboard.press("Enter")
+                await page.wait_for_timeout(2500)
+                logger.info("[%s] busca re-submetida via Enter (fallback)", domain)
+            except Exception:
+                logger.warning("[%s] não conseguiu re-submeter busca", domain)
     except PlaywrightTimeout:
         logger.warning("[%s] timeout ao forçar country=ALL — segue com country atual", domain)
     except Exception as e:
