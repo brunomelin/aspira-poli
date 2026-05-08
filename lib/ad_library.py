@@ -123,9 +123,10 @@ async def scrape_domain(page: Page, domain: str) -> dict:
 
     # Meta redireciona ?country=ALL pro country do visitor (BR via IP) mesmo
     # com locale en-US. Forçamos via UI: click no dropdown country e seleciona
-    # All/Todos pra retornar ao escopo global da URL original.
-    if "view_all_page_id=" in url or "country=all" in url.lower() or "country=ALL" in url:
-        await _force_country_all(page, domain)
+    # Tudo, depois RECARREGA a URL original — Meta agora tem cookie/state
+    # atualizado e respeita o country=ALL na segunda navegação.
+    if "country=all" in url.lower() or "country=ALL" in url:
+        await _force_country_all(page, domain, url)
 
     total_ads = await _extract_ad_count(page, domain)
     advertisers = await _extract_advertisers(page, domain)
@@ -154,8 +155,11 @@ async def scrape_domain(page: Page, domain: str) -> dict:
     }
 
 
-async def _force_country_all(page: Page, domain: str) -> None:
-    """Click no dropdown country (top-left) e seleciona 'All / Todos'.
+async def _force_country_all(page: Page, domain: str, original_url: str) -> None:
+    """Click no dropdown country (top-left) e seleciona 'Tudo / All', depois
+    recarrega a URL original pra Meta respeitar country=ALL (cookie/state
+    atualizado).
+
     Meta renderiza o country picker como <div role=combobox aria-haspopup=listbox>
     (não <button>). Primeiro combobox da top-bar é o country.
     Tolerante a falha — se locator não encontrar, segue com country atual."""
@@ -207,33 +211,15 @@ async def _force_country_all(page: Page, domain: str) -> None:
             modal = page.locator('div').filter(has_text=re.compile(r"^Selecionar país$|^Select country$")).last
             all_text = modal.get_by_text(re.compile(r"^(Tudo|All)$"))
             await all_text.first.click(timeout=4000)
-        await page.wait_for_timeout(2500)
-        logger.info("[%s] country forçado pra ALL via UI", domain)
+        await page.wait_for_timeout(2000)
+        logger.info("[%s] 'Tudo' clicado no country picker — cookie atualizado", domain)
 
-        # Quando muda country, Meta reseta o dropdown "Categoria de anúncio"
-        # pro default restrito (Temas/eleições/política). Precisa re-selecionar
-        # "Todos os anúncios" pra voltar ao escopo amplo.
-        try:
-            # 2º combobox da top-bar = categoria de anúncio
-            category_dropdown = page.locator(
-                'div[role="combobox"][aria-haspopup="listbox"]'
-            ).nth(1)
-            await category_dropdown.click(timeout=4000)
-            await page.wait_for_timeout(600)
-            # Click em "Todos os anúncios" (PT) ou "All ads" (EN)
-            all_ads_option = page.get_by_role("radio", name=re.compile(r"^(Todos os anúncios|All ads)$"))
-            try:
-                await all_ads_option.first.click(timeout=3000)
-            except PlaywrightTimeout:
-                # Fallback: text-based
-                all_ads_option = page.get_by_text(re.compile(r"^(Todos os anúncios|All ads)$"))
-                await all_ads_option.first.click(timeout=3000)
-            await page.wait_for_timeout(2000)
-            logger.info("[%s] categoria 'Todos os anúncios' re-selecionada", domain)
-        except PlaywrightTimeout:
-            logger.warning("[%s] timeout ao re-selecionar categoria — segue mesmo assim", domain)
-        except Exception as e:
-            logger.warning("[%s] erro ao re-selecionar categoria: %s", domain, e)
+        # Recarrega a URL original — agora Meta tem cookie de preferência ALL e
+        # vai respeitar o country=ALL da URL (não redireciona pra BR).
+        # Reaproveita filtros (page_id, etc) sem precisar refazer via UI.
+        logger.info("[%s] recarregando URL com country=ALL...", domain)
+        await page.goto(original_url, wait_until="domcontentloaded", timeout=30000)
+        await page.wait_for_timeout(3000)
     except PlaywrightTimeout:
         logger.warning("[%s] timeout ao forçar country=ALL — segue com country atual", domain)
     except Exception as e:
