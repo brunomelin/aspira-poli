@@ -240,29 +240,28 @@ async def _force_country_all(page: Page, domain: str, original_url: str) -> None
         # ficar em keyword search — mantém o escopo Page que a URL original
         # pediu. Estratégia: skip primeira option (que é "Pesquise esta frase
         # exata") e click na segunda (primeira Page real).
+        # CRÍTICO: aguardar nth(1) visível (Anunciantes carrega async via AJAX
+        # depois do autocomplete principal). Timeout fixo curto pega só a
+        # primeira option = "Pesquise esta frase exata" que NÃO é o que queremos.
         try:
             search_input = page.locator('input[type="search"]').first
             await search_input.click(timeout=3000)
-            await page.wait_for_timeout(700)
 
-            # Pegar role=option dentro do autocomplete listbox.
-            # Order do dropdown: [0]=Pesquise esta frase exata, [1+]=Anunciantes (Pages)
-            options = page.locator('[role="option"]')
-            count = await options.count()
-            if count >= 2:
-                await options.nth(1).click(timeout=3000)
+            # Aguarda 2ª option ficar visível — indica que Anunciantes carregaram
+            second_option = page.locator('[role="option"]').nth(1)
+            try:
+                await second_option.wait_for(state="visible", timeout=8000)
+                await second_option.click(timeout=2000)
                 logger.info("[%s] primeira Page clicada no autocomplete (skip 'Pesquise frase exata')", domain)
-            elif count == 1:
-                await options.first.click(timeout=3000)
-                logger.info("[%s] única option do autocomplete clicada (fallback)", domain)
-            else:
-                # Sem options — fallback: Enter
+                await page.wait_for_timeout(2500)
+            except PlaywrightTimeout:
+                # Anunciantes não carregaram — fallback: Enter
+                logger.info("[%s] autocomplete só tem 'Pesquise frase exata' — Enter (fallback)", domain)
                 await search_input.focus(timeout=2000)
                 await page.keyboard.press("Enter")
-                logger.info("[%s] autocomplete vazio — Enter no search input (fallback)", domain)
-            await page.wait_for_timeout(2500)
+                await page.wait_for_timeout(2500)
         except PlaywrightTimeout:
-            logger.warning("[%s] timeout ao clicar na primeira Page do autocomplete", domain)
+            logger.warning("[%s] timeout ao re-submeter busca", domain)
         except Exception as e:
             logger.warning("[%s] erro ao re-submeter busca: %s", domain, e)
     except PlaywrightTimeout:
