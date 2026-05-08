@@ -174,6 +174,24 @@ async def _force_country_all(page: Page, domain: str) -> None:
                 continue
         if not clicked:
             logger.info("[%s] dropdown country não encontrado — segue com country atual", domain)
+            # Debug dump pra inspecionar DOM real (pra ajustar seletor depois)
+            try:
+                import os
+                os.makedirs("output/debug", exist_ok=True)
+                safe_domain = re.sub(r"[^a-zA-Z0-9]", "_", domain)[:40]
+                screenshot_path = f"output/debug/{safe_domain}.png"
+                html_path = f"output/debug/{safe_domain}.html"
+                await page.screenshot(path=screenshot_path, full_page=False)
+                html = await page.content()
+                with open(html_path, "w") as f:
+                    f.write(html)
+                # Extrai só o top-bar (primeiros ~50KB) pra debug rápido
+                top_html = html[:80000]
+                with open(html_path + ".top", "w") as f:
+                    f.write(top_html)
+                logger.info("[%s] debug salvo: %s + %s", domain, screenshot_path, html_path)
+            except Exception as e:
+                logger.warning("[%s] falha no debug dump: %s", domain, e)
             return
 
         await page.wait_for_timeout(600)
