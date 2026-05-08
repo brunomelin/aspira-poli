@@ -214,56 +214,16 @@ async def _force_country_all(page: Page, domain: str, original_url: str) -> None
         await page.wait_for_timeout(2500)
         logger.info("[%s] 'Tudo' selecionado no country picker", domain)
 
-        # Após mudar country, Meta reseta a categoria de anúncio pra um default
-        # restrito (ex: "Temas, eleições ou política"). Re-seleciona "Todos os
-        # anúncios" pra voltar ao escopo amplo.
-        try:
-            # Categoria dropdown: combobox com texto da categoria atual.
-            # Filtro por has_text inclui "Categoria" (fallback se Meta resetou
-            # pra valor restrito) ou "Todos os anúncios" (se já está OK).
-            category_dropdown = page.locator(
-                'div[role="combobox"][aria-haspopup="listbox"]'
-            ).filter(
-                has_text=re.compile(r"Categoria|Categories|Todos os anúncios|All ads|Temas|Issues", re.IGNORECASE)
-            )
-            await category_dropdown.first.click(timeout=3000)
-            await page.wait_for_timeout(600)
-            all_ads = page.get_by_role("radio", name=re.compile(r"^(Todos os anúncios|All ads)$"))
-            await all_ads.first.click(timeout=3000)
-            await page.wait_for_timeout(1500)
-            logger.info("[%s] categoria 'Todos os anúncios' re-selecionada", domain)
-        except PlaywrightTimeout:
-            logger.info("[%s] categoria já está em 'Todos os anúncios' (ou dropdown mudou)", domain)
-
-        # Re-submeter a busca clicando na primeira Page do autocomplete (seção
-        # "Anunciantes"). Vai pra ?view_all_page_id da Page exata em vez de
-        # ficar em keyword search — mantém o escopo Page que a URL original
-        # pediu. Estratégia: skip primeira option (que é "Pesquise esta frase
-        # exata") e click na segunda (primeira Page real).
-        # CRÍTICO: aguardar nth(1) visível (Anunciantes carrega async via AJAX
-        # depois do autocomplete principal). Timeout fixo curto pega só a
-        # primeira option = "Pesquise esta frase exata" que NÃO é o que queremos.
-        try:
-            search_input = page.locator('input[type="search"]').first
-            await search_input.click(timeout=3000)
-
-            # Aguarda 2ª option ficar visível — indica que Anunciantes carregaram
-            second_option = page.locator('[role="option"]').nth(1)
-            try:
-                await second_option.wait_for(state="visible", timeout=8000)
-                await second_option.click(timeout=2000)
-                logger.info("[%s] primeira Page clicada no autocomplete (skip 'Pesquise frase exata')", domain)
-                await page.wait_for_timeout(2500)
-            except PlaywrightTimeout:
-                # Anunciantes não carregaram — fallback: Enter
-                logger.info("[%s] autocomplete só tem 'Pesquise frase exata' — Enter (fallback)", domain)
-                await search_input.focus(timeout=2000)
-                await page.keyboard.press("Enter")
-                await page.wait_for_timeout(2500)
-        except PlaywrightTimeout:
-            logger.warning("[%s] timeout ao re-submeter busca", domain)
-        except Exception as e:
-            logger.warning("[%s] erro ao re-submeter busca: %s", domain, e)
+        # Em vez de tentar manipular categoria + autocomplete (frágil — primeira
+        # Page do autocomplete pode não bater com a Page que a URL queria, e a
+        # ordem por relevância da Meta não é determinística), simplesmente
+        # RECARREGA a URL original. Meta agora tem o cookie de preferência ALL
+        # atualizado pelo click "Tudo" e respeita o country=ALL no reload.
+        # Bonus: URL com view_all_page_id leva direto pra Page certa — zero
+        # ambiguidade.
+        logger.info("[%s] recarregando URL original com country=ALL ativo", domain)
+        await page.goto(original_url, wait_until="domcontentloaded", timeout=30000)
+        await page.wait_for_timeout(3000)
     except PlaywrightTimeout:
         logger.warning("[%s] timeout ao forçar country=ALL — segue com country atual", domain)
     except Exception as e:
