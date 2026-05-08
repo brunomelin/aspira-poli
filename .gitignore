@@ -1,0 +1,22 @@
+# Secrets — cada user cria o seu
+.env
+
+# Output do scrape
+output/
+
+# Cookies do Playwright (auth state caso use)
+cookies/
+
+# Listas de domínios privadas — copiar dominios.txt.example pra dominios.txt
+dominios.txt
+dominios_*.txt
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# OS
+.DS_Store

@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ad Intelligence Dashboard — Facebook + Google</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{fb:'#1877F2',fbdark:'#155DC2',goog:'#34A853',googdark:'#2D8F47'}}}}</script>
+<style>
+  .fade-in{animation:fadeIn .2s ease-in}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .sort-col{cursor:pointer;user-select:none}
+  .sort-col::after{content:'';display:inline-block;margin-left:4px;opacity:.3}
+  .sort-col.asc::after{content:'\25B2';opacity:1}
+  .sort-col.desc::after{content:'\25BC';opacity:1}
+  table{border-collapse:collapse}
+  th{position:sticky;top:0;z-index:2}
+  .tag{display:inline-block;font-size:.65rem;padding:2px 8px;border-radius:9999px;font-weight:500}
+  .tag-drama{background:rgba(168,85,247,.15);color:#c084fc}
+  .tag-quiz{background:rgba(59,130,246,.15);color:#60a5fa}
+  .tag-shein{background:rgba(236,72,153,.15);color:#f472b6}
+  .tag-give{background:rgba(245,158,11,.15);color:#fbbf24}
+  .tag-news{background:rgba(34,197,94,.15);color:#4ade80}
+  .tag-other{background:rgba(100,116,139,.15);color:#94a3b8}
+  .tag-en{background:rgba(59,130,246,.1);color:#93c5fd}
+  .tag-es{background:rgba(245,158,11,.1);color:#fcd34d}
+  .tag-pt{background:rgba(34,197,94,.1);color:#86efac}
+  .tag-unk{background:rgba(100,116,139,.1);color:#94a3b8}
+  .nav-tab{padding:.625rem 1.25rem;font-size:.875rem;font-weight:500;border-bottom:2px solid transparent;color:#6b7280;cursor:pointer;transition:all .15s;white-space:nowrap}
+  .nav-tab:hover{color:#d1d5db}
+  .nav-tab.active{color:#1877F2;border-color:#1877F2}
+  .nav-tab.active.g-tab{color:#34A853;border-color:#34A853}
+  .nav-sep{width:1px;background:#374151;margin:6px 4px;flex-shrink:0}
+  .plat-badge{font-size:.55rem;padding:1px 5px;border-radius:4px;font-weight:700;vertical-align:middle;margin-left:4px}
+  .plat-fb{background:rgba(24,119,242,.2);color:#60a5fa}
+  .plat-g{background:rgba(52,168,83,.2);color:#34d399}
+  .cluster-card,.media-card,.copy-card{transition:all .15s}
+  .cluster-card:hover,.media-card:hover,.copy-card:hover{border-color:#1877F2}
+  .expand-text{max-height:3.2em;overflow:hidden;transition:max-height .3s}
+  .expand-text.open{max-height:none}
+  .thumb{width:120px;height:68px;object-fit:cover;border-radius:6px;background:#1f2937;flex-shrink:0}
+  .btn-sm{font-size:.7rem;padding:3px 10px;border-radius:6px;font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:4px}
+  .btn-fb{background:rgba(24,119,242,.15);color:#60a5fa}.btn-fb:hover{background:rgba(24,119,242,.3)}
+  .btn-dl{background:rgba(16,185,129,.15);color:#34d399}.btn-dl:hover{background:rgba(16,185,129,.3)}
+  .btn-cp{background:rgba(100,116,139,.15);color:#94a3b8}.btn-cp:hover{background:rgba(100,116,139,.3)}
+</style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+
+<header class="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between flex-wrap gap-3">
+  <div class="flex items-center gap-3">
+    <div class="w-9 h-9 bg-fb rounded-lg flex items-center justify-center font-bold text-white text-lg">f</div>
+    <div>
+      <h1 class="text-lg font-semibold text-white">Ad Library Intelligence <span class="text-xs text-gray-600 font-normal">v2.0</span></h1>
+      <p id="headerMeta" class="text-xs text-gray-500">Carregue um arquivo JSON para iniciar</p>
+    </div>
+  </div>
+  <label class="cursor-pointer bg-fb hover:bg-fbdark text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+    Carregar JSON
+    <input type="file" id="fileInput" accept=".json" class="hidden">
+  </label>
+</header>
+
+<div id="emptyState" class="flex flex-col items-center justify-center py-32 text-gray-500">
+  <svg class="w-16 h-16 mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+  <p class="text-lg">Nenhum dado carregado</p>
+  <p class="text-sm mt-1">Clique em <strong class="text-fb">Carregar JSON</strong> para importar o resultado do scraper</p>
+</div>
+
+<main id="mainContent" class="hidden">
+<nav class="bg-gray-900 border-b border-gray-800 px-6 flex gap-1 overflow-x-auto items-center">
+  <button class="nav-tab active" data-nav="overview">Overview</button>
+  <div class="nav-sep"></div>
+  <button class="nav-tab" data-nav="midia">Midia<span class="plat-badge plat-fb">FB</span></button>
+  <button class="nav-tab" data-nav="conteudos">Conteudos<span class="plat-badge plat-fb">FB</span></button>
+  <button class="nav-tab" data-nav="criativos">Criativos<span class="plat-badge plat-fb">FB</span></button>
+  <button class="nav-tab" data-nav="busca">Busca<span class="plat-badge plat-fb">FB</span></button>
+  <div class="nav-sep nav-google-el" style="display:none"></div>
+  <button class="nav-tab g-tab nav-google-el" data-nav="google" id="navGoogle" style="display:none">Criativos<span class="plat-badge plat-g">G</span></button>
+  <button class="nav-tab g-tab nav-google-el" data-nav="gmidia" id="navGMidia" style="display:none">Midia<span class="plat-badge plat-g">G</span></button>
+  <button class="nav-tab g-tab nav-google-el" data-nav="gbusca" id="navGBusca" style="display:none">Busca<span class="plat-badge plat-g">G</span></button>
+  <div class="nav-sep"></div>
+  <button class="nav-tab" data-nav="redes">Redes</button>
+</nav>
+
+<!-- ==================== OVERVIEW ==================== -->
+<section id="sec-overview" class="px-6 py-6 max-w-[1600px] mx-auto">
+  <div id="kpiRow" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-6"></div>
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <input id="ovSearch" type="text" placeholder="Buscar dominio..." class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-56 focus:outline-none focus:border-fb placeholder-gray-500">
+    <select id="ovNiche" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-fb"><option value="">Todos os nichos</option></select>
+    <button id="ovExport" class="ml-auto bg-gray-800 hover:bg-gray-700 border border-gray-700 text-sm px-4 py-2 rounded-lg transition">Exportar CSV</button>
+  </div>
+  <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden mb-6">
+    <div class="overflow-x-auto max-h-[48vh] overflow-y-auto">
+      <table class="w-full text-sm"><thead class="bg-gray-800 text-gray-400 text-xs uppercase tracking-wider"><tr>
+        <th class="px-4 py-3 text-left sort-col" data-sc="dominio">Dominio</th>
+        <th class="px-4 py-3 text-right sort-col" data-sc="total_anuncios">FB Ads</th>
+        <th class="px-4 py-3 text-right sort-col" data-sc="anunciantes">FB Anunc.</th>
+        <th class="px-4 py-3 text-right sort-col ov-google-col" data-sc="google_ads" style="display:none">G Ads</th>
+        <th class="px-4 py-3 text-right sort-col ov-google-col" data-sc="google_criativos" style="display:none">G Criativos</th>
+        <th class="px-4 py-3 text-right sort-col" data-sc="urls">URLs</th>
+        <th class="px-4 py-3 text-right sort-col" data-sc="ratio">Ads/URL</th>
+        <th class="px-4 py-3 text-center">Nicho</th>
+        <th class="px-4 py-3 text-center">Plataformas</th>
+        <th class="px-4 py-3 text-right sort-col" data-sc="online">On</th>
+        <th class="px-4 py-3 text-right sort-col" data-sc="offline">Off</th>
+        <th class="px-4 py-3 text-right sort-col ov-google-col" data-sc="score" style="display:none">Score</th>
+      </tr></thead><tbody id="ovTableBody" class="divide-y divide-gray-800"></tbody></table>
+    </div>
+  </div>
+  <div id="ovDetail" class="hidden fade-in">
+    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+      <div class="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
+        <div><h2 id="ovDetTitle" class="text-lg font-semibold text-white"></h2><p id="ovDetSub" class="text-xs text-gray-500 mt-0.5"></p></div>
+        <button id="ovDetClose" class="text-gray-500 hover:text-white text-xl leading-none px-2">&times;</button>
+      </div>
+      <div id="ovDetChips" class="px-5 py-3 border-b border-gray-800 flex flex-wrap gap-2"></div>
+      <div class="flex border-b border-gray-800">
+        <button class="dtab active" data-dt="ads">Anuncios <span class="plat-badge plat-fb">FB</span></button>
+        <button class="dtab" data-dt="urls">URLs <span class="plat-badge plat-fb">FB</span></button>
+        <button class="dtab dtab-google" data-dt="gads" style="display:none">Criativos <span class="plat-badge plat-g">G</span></button>
+      </div>
+      <div id="dtAds" class="overflow-x-auto max-h-[45vh] overflow-y-auto">
+        <table class="w-full text-sm"><thead class="bg-gray-800 text-gray-400 text-xs uppercase tracking-wider"><tr>
+          <th class="px-3 py-3 text-left">Preview</th><th class="px-3 py-3 text-left">ID</th><th class="px-3 py-3 text-left">Anunciante</th>
+          <th class="px-3 py-3 text-left">Texto</th><th class="px-3 py-3 text-left">URL / Titulo</th>
+          <th class="px-3 py-3 text-center">Nicho</th><th class="px-3 py-3 text-center">Status</th><th class="px-3 py-3 text-center">Acoes</th>
+        </tr></thead><tbody id="ovAdsBody" class="divide-y divide-gray-800"></tbody></table>
+      </div>
+      <div id="dtUrls" class="hidden overflow-x-auto max-h-[45vh] overflow-y-auto">
+        <table class="w-full text-sm"><thead class="bg-gray-800 text-gray-400 text-xs uppercase tracking-wider"><tr>
+          <th class="px-4 py-3 text-left">URL</th><th class="px-4 py-3 text-left">URL Final</th>
+          <th class="px-4 py-3 text-left">Titulo</th><th class="px-4 py-3 text-center">Status</th><th class="px-4 py-3 text-center">Online</th>
+        </tr></thead><tbody id="ovUrlsBody" class="divide-y divide-gray-800"></tbody></table>
+      </div>
+      <div id="dtGads" class="hidden overflow-x-auto max-h-[45vh] overflow-y-auto">
+        <table class="w-full text-sm"><thead class="bg-gray-800 text-gray-400 text-xs uppercase tracking-wider"><tr>
+          <th class="px-3 py-3 text-left">Preview</th><th class="px-3 py-3 text-left">Anunciante</th><th class="px-3 py-3 text-center">Fmt</th>
+          <th class="px-3 py-3 text-left">Headline</th><th class="px-3 py-3 text-left">Landing</th>
+          <th class="px-3 py-3 text-center">Periodo</th><th class="px-3 py-3 text-center">Acoes</th>
+        </tr></thead><tbody id="ovGadsBody" class="divide-y divide-gray-800"></tbody></table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== GOOGLE ADS ==================== -->
+<section id="sec-google" class="hidden px-6 py-6 max-w-[1600px] mx-auto">
+  <h2 class="text-lg font-semibold mb-1">Criativos <span class="plat-badge plat-g text-xs">Google Ads</span></h2>
+  <p class="text-sm text-gray-500 mb-5">Criativos extraidos do Google Ads Transparency Center. Inclui dados de detalhe: headline, landing page, video, datas de veiculacao.</p>
+  <div id="gKpiRow" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6"></div>
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <input id="gSearch" type="text" placeholder="Buscar dominio, anunciante, headline..." class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-64 focus:outline-none focus:border-goog placeholder-gray-500">
+    <select id="gFormat" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-goog">
+      <option value="">Todos os formatos</option><option value="video">Video</option><option value="image">Imagem</option><option value="text">Texto</option>
+    </select>
+    <label class="flex items-center gap-2 text-sm text-gray-400"><input type="checkbox" id="gVerified" class="rounded"> Apenas verificados</label>
+    <label class="flex items-center gap-2 text-sm text-gray-400"><input type="checkbox" id="gWithDetail" class="rounded"> Com detalhe</label>
+    <span id="gCount" class="text-xs text-gray-500 ml-auto"></span>
+  </div>
+  <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+    <div class="overflow-x-auto max-h-[60vh] overflow-y-auto">
+      <table class="w-full text-sm"><thead class="bg-gray-800 text-gray-400 text-xs uppercase tracking-wider"><tr>
+        <th class="px-3 py-3 text-left">Preview</th>
+        <th class="px-3 py-3 text-left">Dominio</th>
+        <th class="px-3 py-3 text-left">Anunciante</th>
+        <th class="px-3 py-3 text-center">Fmt</th>
+        <th class="px-3 py-3 text-left">Headline / Descricao</th>
+        <th class="px-3 py-3 text-left">Landing Page</th>
+        <th class="px-3 py-3 text-center">Periodo</th>
+        <th class="px-3 py-3 text-center">Dias</th>
+        <th class="px-3 py-3 text-center">Acoes</th>
+      </tr></thead><tbody id="gBody" class="divide-y divide-gray-800"></tbody></table>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== MIDIA GOOGLE ==================== -->
+<section id="sec-gmidia" class="hidden px-6 py-6 max-w-[1600px] mx-auto">
+  <h2 class="text-lg font-semibold mb-1">Analise de Midia <span class="plat-badge plat-g text-xs">Google Ads</span></h2>
+  <p class="text-sm text-gray-500 mb-5">Criativos Google agrupados por fingerprint de midia. Os mais repetidos entre dominios diferentes sao os mais validados pelo mercado.</p>
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <select id="gmFormat" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-goog">
+      <option value="">Todos os formatos</option><option value="video">Video</option><option value="image">Imagem</option><option value="text">Texto</option>
+    </select>
+    <select id="gmSort" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-goog">
+      <option value="count">Mais repetidos</option><option value="domains">Mais dominios</option><option value="longevity">Mais antigos</option>
+    </select>
+    <span id="gmCount" class="text-xs text-gray-500 ml-2"></span>
+  </div>
+  <div id="gmCards" class="grid gap-4"></div>
+</section>
+
+<!-- ==================== MIDIA FB ==================== -->
+<section id="sec-midia" class="hidden px-6 py-6 max-w-[1600px] mx-auto">
+  <h2 class="text-lg font-semibold mb-1">Analise de Midia <span class="plat-badge plat-fb text-xs">Facebook</span></h2>
+  <p class="text-sm text-gray-500 mb-5">Videos/imagens do Facebook agrupados por fingerprint. Criativos repetidos sao os mais validados pelo mercado — baixe e analise.</p>
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <select id="mdNiche" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-fb"><option value="">Todos os nichos</option></select>
+    <select id="mdSort" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-fb">
+      <option value="count">Mais repetidos</option><option value="domains">Mais dominios</option>
+    </select>
+    <span id="mdCount" class="text-xs text-gray-500 ml-2"></span>
+  </div>
+  <div id="mdCards" class="grid gap-4"></div>
+</section>
+
+<!-- ==================== REDES ==================== -->
+<section id="sec-redes" class="hidden px-6 py-6 max-w-[1600px] mx-auto">
+  <h2 class="text-lg font-semibold mb-1">Redes de Anunciantes</h2>
+  <p class="text-sm text-gray-500 mb-5">Dominios que compartilham anunciantes provavelmente pertencem ao mesmo operador. Analise separada por plataforma.</p>
+
+  <h3 class="text-base font-semibold mt-2 mb-3 flex items-center gap-2">Clusters <span class="plat-badge plat-fb">Facebook</span></h3>
+  <div id="networkClustersFb" class="space-y-4 mb-8"></div>
+
+  <div id="redesGoogleSection" style="display:none">
+    <h3 class="text-base font-semibold mt-2 mb-3 flex items-center gap-2">Clusters <span class="plat-badge plat-g">Google Ads</span></h3>
+    <div id="networkClustersG" class="space-y-4 mb-8"></div>
+  </div>
+
+  <h3 class="text-base font-semibold mt-2 mb-1">Top Anunciantes Cross-Domain <span class="plat-badge plat-fb">Facebook</span></h3>
+  <p class="text-sm text-gray-500 mb-4">Anunciantes do Facebook que operam em mais dominios simultaneamente.</p>
+  <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden mb-8">
+    <div class="overflow-x-auto max-h-[45vh] overflow-y-auto">
+      <table class="w-full text-sm"><thead class="bg-gray-800 text-gray-400 text-xs uppercase tracking-wider"><tr>
+        <th class="px-4 py-3 text-left">Anunciante</th><th class="px-4 py-3 text-right">Dominios</th><th class="px-4 py-3 text-left">Lista</th>
+      </tr></thead><tbody id="advNetBodyFb" class="divide-y divide-gray-800"></tbody></table>
+    </div>
+  </div>
+
+  <div id="redesGoogleTable" style="display:none">
+    <h3 class="text-base font-semibold mt-2 mb-1">Top Anunciantes Cross-Domain <span class="plat-badge plat-g">Google Ads</span></h3>
+    <p class="text-sm text-gray-500 mb-4">Anunciantes do Google que operam em mais dominios simultaneamente.</p>
+    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+      <div class="overflow-x-auto max-h-[45vh] overflow-y-auto">
+        <table class="w-full text-sm"><thead class="bg-gray-800 text-gray-400 text-xs uppercase tracking-wider"><tr>
+          <th class="px-4 py-3 text-left">Anunciante</th><th class="px-4 py-3 text-right">Dominios</th><th class="px-4 py-3 text-left">Lista</th>
+        </tr></thead><tbody id="advNetBodyG" class="divide-y divide-gray-800"></tbody></table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== CONTEUDOS FB ==================== -->
+<section id="sec-conteudos" class="hidden px-6 py-6 max-w-[1600px] mx-auto">
+  <h2 class="text-lg font-semibold mb-1">Biblioteca de Conteudos <span class="plat-badge plat-fb text-xs">Facebook</span></h2>
+  <p class="text-sm text-gray-500 mb-5">Conteudos do Facebook ranqueados por volume — quanto mais empurrado, mais provavel que converta.</p>
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <input id="ctSearch" type="text" placeholder="Buscar conteudo..." class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-56 focus:outline-none focus:border-fb placeholder-gray-500">
+    <select id="ctNiche" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-fb"><option value="">Todos os nichos</option></select>
+  </div>
+  <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+    <div class="overflow-x-auto max-h-[60vh] overflow-y-auto">
+      <table class="w-full text-sm"><thead class="bg-gray-800 text-gray-400 text-xs uppercase tracking-wider"><tr>
+        <th class="px-4 py-3 text-right">#</th><th class="px-4 py-3 text-left">Content ID</th>
+        <th class="px-4 py-3 text-left">Titulo</th><th class="px-4 py-3 text-right">Anuncios</th>
+        <th class="px-4 py-3 text-right">Dominios</th><th class="px-4 py-3 text-right">Anunciantes</th>
+        <th class="px-4 py-3 text-center">Nicho</th><th class="px-4 py-3 text-left">Path</th>
+      </tr></thead><tbody id="ctBody" class="divide-y divide-gray-800"></tbody></table>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== CRIATIVOS FB ==================== -->
+<section id="sec-criativos" class="hidden px-6 py-6 max-w-[1600px] mx-auto">
+  <h2 class="text-lg font-semibold mb-1">Swipe File de Criativos <span class="plat-badge plat-fb text-xs">Facebook</span></h2>
+  <p class="text-sm text-gray-500 mb-5">Templates de copy do Facebook ranqueados por frequencia — os mais repetidos sobreviveram ao teste A/B.</p>
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <select id="cpNiche" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-fb"><option value="">Todos os nichos</option></select>
+    <select id="cpLang" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-fb">
+      <option value="">Todos os idiomas</option><option value="en">Ingles</option><option value="es">Espanhol</option><option value="pt">Portugues</option><option value="?">Indefinido</option>
+    </select>
+  </div>
+  <div id="cpCards" class="grid gap-3"></div>
+</section>
+
+<!-- ==================== BUSCA FB ==================== -->
+<section id="sec-busca" class="hidden px-6 py-6 max-w-[1600px] mx-auto">
+  <h2 class="text-lg font-semibold mb-1">Busca de Anuncios <span class="plat-badge plat-fb text-xs">Facebook</span></h2>
+  <p class="text-sm text-gray-500 mb-5">Pesquise em todos os anuncios do Facebook de todos os dominios.</p>
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <input id="gsQuery" type="text" placeholder="Buscar por texto, titulo, anunciante, URL..." class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-96 focus:outline-none focus:border-fb placeholder-gray-500">
+    <select id="gsNiche" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-fb"><option value="">Todos os nichos</option></select>
+    <select id="gsLang" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-fb">
+      <option value="">Todos os idiomas</option><option value="en">Ingles</option><option value="es">Espanhol</option><option value="pt">Portugues</option><option value="?">Indefinido</option>
+    </select>
+    <span id="gsCount" class="text-xs text-gray-500 ml-2"></span>
+  </div>
+  <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+    <div class="overflow-x-auto max-h-[60vh] overflow-y-auto">
+      <table class="w-full text-sm"><thead class="bg-gray-800 text-gray-400 text-xs uppercase tracking-wider"><tr>
+        <th class="px-3 py-3 text-left">Preview</th><th class="px-3 py-3 text-left">Dominio</th><th class="px-3 py-3 text-left">Anunciante</th>
+        <th class="px-3 py-3 text-left">Texto</th><th class="px-3 py-3 text-left">URL / Titulo</th>
+        <th class="px-3 py-3 text-center">Nicho</th><th class="px-3 py-3 text-center">Status</th><th class="px-3 py-3 text-center">Acoes</th>
+      </tr></thead><tbody id="gsBody" class="divide-y divide-gray-800"></tbody></table>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== BUSCA GOOGLE ==================== -->
+<section id="sec-gbusca" class="hidden px-6 py-6 max-w-[1600px] mx-auto">
+  <h2 class="text-lg font-semibold mb-1">Busca de Criativos <span class="plat-badge plat-g text-xs">Google Ads</span></h2>
+  <p class="text-sm text-gray-500 mb-5">Pesquise em todos os criativos Google — busca por headline, descricao, anunciante, dominio, URL de destino.</p>
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <input id="gbQuery" type="text" placeholder="Buscar por headline, anunciante, URL..." class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-96 focus:outline-none focus:border-goog placeholder-gray-500">
+    <select id="gbFormat" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-goog">
+      <option value="">Todos os formatos</option><option value="video">Video</option><option value="image">Imagem</option><option value="text">Texto</option>
+    </select>
+    <label class="flex items-center gap-2 text-sm text-gray-400"><input type="checkbox" id="gbVerified" class="rounded"> Apenas verificados</label>
+    <span id="gbCount" class="text-xs text-gray-500 ml-auto"></span>
+  </div>
+  <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+    <div class="overflow-x-auto max-h-[60vh] overflow-y-auto">
+      <table class="w-full text-sm"><thead class="bg-gray-800 text-gray-400 text-xs uppercase tracking-wider"><tr>
+        <th class="px-3 py-3 text-left">Preview</th>
+        <th class="px-3 py-3 text-left">Dominio</th>
+        <th class="px-3 py-3 text-left">Anunciante</th>
+        <th class="px-3 py-3 text-center">Formato</th>
+        <th class="px-3 py-3 text-left">Headline / Descricao</th>
+        <th class="px-3 py-3 text-center">Acoes</th>
+      </tr></thead><tbody id="gbBody" class="divide-y divide-gray-800"></tbody></table>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+let DATA=null, OV={sort:'total_anuncios',dir:'desc',sel:null}, allAdsFlat=[], allGoogleAds=[], hasGoogle=false;
+
+document.getElementById('fileInput').addEventListener('change', e => {
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{try{DATA=JSON.parse(ev.target.result);normalizeData();boot();}catch(err){alert('Erro: '+err.message);}};
+  r.readAsText(f);
+});
+
+function normalizeData(){
+  if(DATA.dominios && !DATA.resultados){
+    const resultados=[];
+    for(const d of DATA.dominios){
+      const fb=d.facebook||{};
+      const g=d.google||{};
+      resultados.push({
+        dominio:d.dominio,
+        total_anuncios:fb.anuncios||0,
+        anunciantes:fb.anunciantes||[],
+        anuncios:fb.anuncios_detalhe||[],
+        urls_unicas:Array.isArray(fb.urls_unicas)?fb.urls_unicas:[],
+        total_urls_online:fb.urls_online||0,
+        total_urls_offline:fb.urls_offline||0,
+        erro:null,
+        google_total_anuncios:g.anuncios||0,
+        google_anunciantes:g.anunciantes||[],
+        google_anunciantes_verificados:g.anunciantes_verificados||[],
+        google_tem_anuncios:g.tem_anuncios||false,
+        google_criativos:g.criativos||[],
+        google_formatos:g.formatos||{},
+        plataformas_ativas:d.plataformas_ativas||[],
+      });
+    }
+    DATA.resultados=resultados;
+    DATA.total_dominios=DATA.resumo?.total_dominios||resultados.length;
+    DATA.dominios_processados=resultados.length;
+  }
+  hasGoogle=(DATA.resultados||[]).some(d=>(d.google_total_anuncios||0)>0||(d.google_criativos||[]).length>0);
+  for(const d of (DATA.resultados||[])){
+    d._score=0;
+    if(DATA.dominios){
+      const dd=(DATA.dominios||[]).find(x=>x.dominio===d.dominio);
+      if(dd){d._score=dd.score_presenca||0;d._scoreBreakdown=dd.score_breakdown||{};}
+    }
+  }
+}
+
+function boot(){
+  document.getElementById('emptyState').classList.add('hidden');
+  document.getElementById('mainContent').classList.remove('hidden');
+  const meta=[];
+  meta.push(`${DATA.dominios_processados||DATA.resultados?.length||0} dominios`);
+  if(hasGoogle) meta.push('FB + Google');
+  else meta.push('Facebook');
+  if(DATA.data_geracao)meta.push(DATA.data_geracao);
+  else if(DATA.data_execucao)meta.push(DATA.data_execucao);
+  document.getElementById('headerMeta').textContent=meta.join(' | ');
+  if(hasGoogle){
+    document.querySelectorAll('.nav-google-el,.ov-google-col').forEach(el=>el.style.display='');
+    document.getElementById('redesGoogleSection').style.display='';
+    document.getElementById('redesGoogleTable').style.display='';
+  }
+  enrichData(); populateNicheDropdowns();
+  renderOverview(); renderMidia(); renderRedes(); renderConteudos(); renderCriativos();
+  if(hasGoogle){renderGoogle();renderGMidia();renderGBusca();}
+}
+
+// ========== ENRICHMENT ==========
+function enrichData(){
+  allAdsFlat=[]; allGoogleAds=[];
+  for(const d of (DATA.resultados||[])){
+    let nc={},lc={};
+    for(const ad of (d.anuncios||[])){
+      ad._niche=classifyNiche(ad); ad._lang=detectLang(ad);
+      ad._contentId=extractCID(ad.url_destino_real);
+      ad._domain=d.dominio;
+      ad._mediaFP=mediaFingerprint(ad);
+      nc[ad._niche]=(nc[ad._niche]||0)+1;
+      lc[ad._lang]=(lc[ad._lang]||0)+1;
+      allAdsFlat.push(ad);
+    }
+    d._topNiche=Object.entries(nc).sort((a,b)=>b[1]-a[1])[0]?.[0]||'other';
+    d._topLang=Object.entries(lc).sort((a,b)=>b[1]-a[1])[0]?.[0]||'?';
+    const urls=Array.isArray(d.urls_unicas)?d.urls_unicas.length:0;
+    d._ratio=urls>0?((d.total_anuncios||0)/urls):0;
+    for(const gAd of (d.google_criativos||[])){
+      gAd._domain=d.dominio;
+      allGoogleAds.push(gAd);
+    }
+  }
+}
+
+function classifyNiche(ad){
+  const t=((ad.texto_anuncio||'')+' '+(ad.page_title||'')).toLowerCase();
+  if(/drama|serie|dorama|episod|watch free|mira gratis|assista gr|pelicula|capitulo/.test(t))return'drama';
+  if(/shein|fashion|outfit|roupa|moda|clothes|vestido/.test(t))return'shein';
+  if(/quiz|test|discover|gender|select/.test(t))return'quiz';
+  if(/free|giveaway|gratis|ganhe|get your|zero shipping/.test(t))return'give';
+  if(/news|breaking|noticia|update/.test(t))return'news';
+  return'other';
+}
+function detectLang(ad){
+  const t=(ad.texto_anuncio||'').toLowerCase();
+  if(!t)return'?';
+  if(/mira gratis|episodios|hermosa|atención|serie completa|estreno|disponible/.test(t))return'es';
+  if(/assista|grátis|repleta|atenção|assistir|agora|episódio/.test(t))return'pt';
+  if(/watch free|get your|discover|shipping|buy|free|just do/.test(t))return'en';
+  return'?';
+}
+function extractCID(url){if(!url)return'';try{return new URL(url).searchParams.get('id')||'';}catch{return'';}}
+
+function bestVideoUrl(ad){
+  const hd=ad.video_hd_url||'';
+  if(hd&&!hd.startsWith('blob:'))return hd;
+  const sd=ad.video_url||'';
+  if(sd&&!sd.startsWith('blob:'))return sd;
+  return'';
+}
+
+function mediaFingerprint(ad){
+  const vid=ad.video_hd_url||ad.video_url||'';
+  if(vid&&!vid.startsWith('blob:')){
+    try{const u=new URL(vid);return'V:'+u.pathname;}catch{}
+    return'V:'+vid.substring(0,120);
+  }
+  const thumb=ad.thumbnail_url||'';
+  if(thumb&&!thumb.startsWith('data:')){
+    try{const u=new URL(thumb);return'T:'+u.pathname;}catch{}
+    return'T:'+thumb.substring(0,120);
+  }
+  const txt=(ad.texto_anuncio||'').substring(0,80).toLowerCase().replace(/\s+/g,' ').trim();
+  if(txt.length>=15)return'X:'+txt;
+  return'U:'+ad.id_anuncio;
+}
+
+function fbAdUrl(id){return id?`https://www.facebook.com/ads/library/?id=${id}`:'';}
+
+// ========== HELPERS ==========
+function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+function truncUrl(url){if(!url)return'—';try{const u=new URL(url);let p=u.pathname+u.search;if(p.length>35)p=p.slice(0,32)+'...';return u.hostname+p;}catch{return url.length>50?url.slice(0,47)+'...':url;}}
+function badge(online,code){
+  if(online)return'<span class="tag" style="background:rgba(16,185,129,.15);color:#34d399">Online</span>';
+  if(code>=400)return`<span class="tag" style="background:rgba(239,68,68,.15);color:#f87171">${code}</span>`;
+  return'<span class="tag" style="background:rgba(100,116,139,.15);color:#94a3b8">Offline</span>';
+}
+const NL={drama:'Drama/Series',quiz:'Quiz/Engagement',shein:'Moda/Shein',give:'Giveaway/Free',news:'News',other:'Outros'};
+const NC={drama:'tag-drama',quiz:'tag-quiz',shein:'tag-shein',give:'tag-give',news:'tag-news',other:'tag-other'};
+const LL={en:'EN',es:'ES',pt:'PT','?':'—'};
+const LC={en:'tag-en',es:'tag-es',pt:'tag-pt','?':'tag-unk'};
+function nicheTag(n){return`<span class="tag ${NC[n]||'tag-other'}">${NL[n]||n}</span>`;}
+function langTag(l){return`<span class="tag ${LC[l]||'tag-unk'}">${LL[l]||l}</span>`;}
+
+function thumbHtml(ad){
+  const src=ad.thumbnail_url||ad.video_url||'';
+  if(!src||src.startsWith('blob:')||src.startsWith('data:'))return'<div class="thumb flex items-center justify-center text-gray-600 text-xs">Sem preview</div>';
+  const isVid=!!bestVideoUrl(ad);
+  const hdBadge=ad.video_hd_url?'<div class="absolute top-1 right-1 text-[.5rem] bg-green-500/80 text-white px-1 rounded font-bold">HD</div>':'';
+  return`<div class="relative"><img src="${esc(src)}" class="thumb" onerror="this.outerHTML='<div class=\\'thumb flex items-center justify-center text-gray-600 text-xs\\'>Sem preview</div>'" loading="lazy">${isVid?'<div class="absolute inset-0 flex items-center justify-center"><div class="w-7 h-7 bg-black/60 rounded-full flex items-center justify-center"><svg class="w-3 h-3 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>':''}${hdBadge}</div>`;
+}
+
+function actionBtns(ad){
+  const fbUrl=fbAdUrl(ad.id_anuncio);
+  const vidUrl=bestVideoUrl(ad);
+  const isHd=!!ad.video_hd_url;
+  let html='<div class="flex flex-col gap-1">';
+  if(fbUrl)html+=`<a href="${esc(fbUrl)}" target="_blank" class="btn-sm btn-fb">Ver no FB</a>`;
+  if(vidUrl)html+=`<a href="${esc(vidUrl)}" target="_blank" download class="btn-sm btn-dl">${isHd?'Baixar HD':'Baixar SD'}</a>`;
+  else if(fbUrl)html+=`<a href="${esc(fbUrl)}" target="_blank" class="btn-sm btn-dl">Abrir p/ baixar</a>`;
+  html+='</div>';
+  return html;
+}
+
+function populateNicheDropdowns(){
+  const niches=[...new Set(allAdsFlat.map(a=>a._niche))].sort();
+  const opts=niches.map(n=>`<option value="${n}">${NL[n]||n}</option>`).join('');
+  for(const sel of document.querySelectorAll('#ovNiche,#ctNiche,#cpNiche,#gsNiche,#mdNiche'))
+    sel.innerHTML='<option value="">Todos os nichos</option>'+opts;
+}
+
+function downloadCSV(rows,name){
+  const csv=rows.map(r=>r.join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`fb_${name}_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+}
+
+// ========== NAV ==========
+document.querySelectorAll('.nav-tab').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    for(const s of document.querySelectorAll('[id^="sec-"]'))s.classList.add('hidden');
+    document.getElementById('sec-'+btn.dataset.nav).classList.remove('hidden');
+  });
+});
+
+// ========== OVERVIEW ==========
+function renderOverview(){renderKPIs();renderOvTable();}
+function renderKPIs(){
+  const r=DATA.resultados||[];
+  const totalAds=r.reduce((s,d)=>s+(d.total_anuncios||0),0);
+  const advSet=new Set();r.forEach(d=>(d.anunciantes||[]).forEach(a=>advSet.add(a)));
+  const totalUrls=r.reduce((s,d)=>s+(Array.isArray(d.urls_unicas)?d.urls_unicas.length:0),0);
+  const on=r.reduce((s,d)=>s+(d.total_urls_online||0),0);
+  const off=r.reduce((s,d)=>s+(d.total_urls_offline||0),0);
+  const hasHd=allAdsFlat.filter(a=>!!a.video_hd_url).length;
+
+  const gAds=r.reduce((s,d)=>s+(d.google_total_anuncios||0),0);
+  const gCreatives=allGoogleAds.length;
+  const gDomains=r.filter(d=>(d.google_total_anuncios||0)>0).length;
+  const bothPlatforms=r.filter(d=>(d.total_anuncios||0)>0&&(d.google_total_anuncios||0)>0).length;
+
+  const kpis=[
+    {l:'Dominios',v:r.length,c:'text-blue-400'},
+    {l:'FB Ads',v:totalAds.toLocaleString('pt-BR'),c:'text-purple-400'},
+    {l:'FB Anunciantes',v:advSet.size,c:'text-amber-400'},
+    {l:'Video HD',v:hasHd,c:'text-green-400'},
+    {l:'URLs Online',v:on,c:'text-emerald-400'},
+    {l:'URLs Offline',v:off,c:'text-red-400'},
+  ];
+  if(hasGoogle){
+    const avgScore=r.filter(d=>d._score>0).length>0?Math.round(r.reduce((s,d)=>s+d._score,0)/Math.max(r.filter(d=>d._score>0).length,1)):0;
+    const gWithDetail=allGoogleAds.filter(a=>a.detalhe_extraido).length;
+    const gWithVideo=allGoogleAds.filter(a=>a.video_url).length;
+    kpis.push(
+      {l:'Google Ads',v:gAds.toLocaleString('pt-BR'),c:'text-goog'},
+      {l:'G Criativos',v:gCreatives,c:'text-goog'},
+      {l:'G com Detalhe',v:gWithDetail,c:'text-purple-400'},
+      {l:'G Videos',v:gWithVideo,c:'text-red-400'},
+      {l:'Em Ambas',v:bothPlatforms,c:'text-yellow-400'},
+      {l:'Score Medio',v:avgScore,c:'text-goog'},
+    );
+  }
+  document.getElementById('kpiRow').innerHTML=kpis.map(k=>`
+    <div class="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
+      <div class="text-[.65rem] text-gray-500 uppercase tracking-wider mb-1">${k.l}</div>
+      <div class="text-xl font-bold ${k.c}">${k.v}</div>
+    </div>`).join('');
+}
+
+function getOvFiltered(){
+  let res=DATA.resultados||[];
+  const q=document.getElementById('ovSearch').value.toLowerCase().trim();
+  if(q)res=res.filter(d=>d.dominio.includes(q));
+  const n=document.getElementById('ovNiche').value;
+  if(n)res=res.filter(d=>d._topNiche===n);
+  return res;
+}
+function ovSortVal(d){
+  switch(OV.sort){
+    case'dominio':return d.dominio;case'total_anuncios':return d.total_anuncios||0;
+    case'anunciantes':return(d.anunciantes||[]).length;case'urls':return(Array.isArray(d.urls_unicas)?d.urls_unicas.length:0);
+    case'ratio':return d._ratio||0;case'online':return d.total_urls_online||0;case'offline':return d.total_urls_offline||0;
+    case'google_ads':return d.google_total_anuncios||0;case'google_criativos':return(d.google_criativos||[]).length;
+    case'score':return d._score||0;
+    default:return 0;
+  }
+}
+function renderOvTable(){
+  let res=getOvFiltered();
+  res.sort((a,b)=>{const va=ovSortVal(a),vb=ovSortVal(b);const c=typeof va==='string'?va.localeCompare(vb):va-vb;return OV.dir==='asc'?c:-c;});
+  document.querySelectorAll('#sec-overview .sort-col').forEach(th=>{th.classList.remove('asc','desc');if(th.dataset.sc===OV.sort)th.classList.add(OV.dir);});
+  const tb=document.getElementById('ovTableBody');
+  const cols=hasGoogle?11:9;
+  if(!res.length){tb.innerHTML=`<tr><td colspan="${cols}" class="px-4 py-8 text-center text-gray-500">Nenhum resultado</td></tr>`;return;}
+  tb.innerHTML=res.map(d=>{
+    const sel=OV.sel===d.dominio;
+    const hasFb=(d.total_anuncios||0)>0;
+    const hasG=(d.google_total_anuncios||0)>0;
+    const platformBadges=(hasFb?'<span class="tag" style="background:rgba(24,119,242,.15);color:#60a5fa">FB</span> ':'')+
+      (hasG?'<span class="tag" style="background:rgba(52,168,83,.15);color:#34d399">G</span>':'');
+    const gCols=hasGoogle?`
+      <td class="px-4 py-3 text-right tabular-nums ${hasG?'text-goog':'text-gray-600'}">${(d.google_total_anuncios||0).toLocaleString('pt-BR')}</td>
+      <td class="px-4 py-3 text-right tabular-nums">${(d.google_criativos||[]).length}</td>`:'';
+    return`<tr class="${sel?'bg-gray-800':'hover:bg-gray-800/50'} cursor-pointer transition" data-dom="${esc(d.dominio)}">
+      <td class="px-4 py-3 font-medium text-white">${esc(d.dominio)}${d.erro?'<span class="text-red-400 text-xs ml-1">ERRO</span>':''}</td>
+      <td class="px-4 py-3 text-right tabular-nums">${(d.total_anuncios||0).toLocaleString('pt-BR')}</td>
+      <td class="px-4 py-3 text-right tabular-nums">${(d.anunciantes||[]).length}</td>
+      ${gCols}
+      <td class="px-4 py-3 text-right tabular-nums">${Array.isArray(d.urls_unicas)?d.urls_unicas.length:0}</td>
+      <td class="px-4 py-3 text-right tabular-nums text-fb font-medium">${d._ratio.toFixed(1)}</td>
+      <td class="px-4 py-3 text-center">${nicheTag(d._topNiche)}</td>
+      <td class="px-4 py-3 text-center">${platformBadges||'<span class="text-gray-600 text-xs">—</span>'}</td>
+      <td class="px-4 py-3 text-right tabular-nums text-emerald-400">${d.total_urls_online||0}</td>
+      <td class="px-4 py-3 text-right tabular-nums ${d.total_urls_offline>0?'text-red-400':'text-gray-600'}">${d.total_urls_offline||0}</td>
+      ${hasGoogle?`<td class="px-4 py-3 text-right tabular-nums"><div class="flex items-center justify-end gap-2"><div class="w-16 bg-gray-800 rounded-full h-2"><div class="h-2 rounded-full ${d._score>=60?'bg-goog':d._score>=30?'bg-amber-500':'bg-red-500'}" style="width:${Math.min(d._score,100)}%"></div></div><span class="text-xs font-bold ${d._score>=60?'text-goog':d._score>=30?'text-amber-400':'text-red-400'}">${d._score.toFixed(0)}</span></div></td>`:''}
+    </tr>`;
+  }).join('');
+  tb.querySelectorAll('tr[data-dom]').forEach(row=>row.addEventListener('click',()=>selectOvDomain(row.dataset.dom)));
+}
+
+function selectOvDomain(dom){
+  OV.sel=dom;
+  const d=(DATA.resultados||[]).find(r=>r.dominio===dom);if(!d)return;
+  renderOvTable();
+  const panel=document.getElementById('ovDetail');panel.classList.remove('hidden');
+  document.getElementById('ovDetTitle').textContent=d.dominio;
+  const fbPart=`FB: ${d.total_anuncios||0} ads, ${(d.anunciantes||[]).length} anunciantes`;
+  const gPart=hasGoogle&&(d.google_total_anuncios||0)>0?` | G: ${d.google_total_anuncios} ads, ${(d.google_criativos||[]).length} criativos`:'';
+  document.getElementById('ovDetSub').textContent=fbPart+gPart;
+  const fbChips=(d.anunciantes||[]).map(a=>`<span class="bg-gray-800 border border-blue-900/30 text-gray-300 text-xs px-3 py-1 rounded-full">${esc(a)} <span class="plat-badge plat-fb">FB</span></span>`);
+  const gChips=(d.google_anunciantes||[]).map(a=>`<span class="bg-gray-800 border border-green-900/30 text-gray-300 text-xs px-3 py-1 rounded-full">${esc(a)} <span class="plat-badge plat-g">G</span></span>`);
+  document.getElementById('ovDetChips').innerHTML=[...fbChips,...gChips].join('');
+  const hasGData=(d.google_criativos||[]).length>0;
+  document.querySelectorAll('.dtab-google').forEach(el=>el.style.display=hasGData?'':'none');
+  renderOvAds(d);renderOvUrls(d);renderOvGads(d);switchDtab('ads');
+  panel.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function renderOvGads(d){
+  const tb=document.getElementById('ovGadsBody');const gads=d.google_criativos||[];
+  if(!gads.length){tb.innerHTML='<tr><td colspan="7" class="px-4 py-6 text-center text-gray-500">Nenhum criativo Google para este dominio</td></tr>';return;}
+  tb.innerHTML=gads.map(a=>`<tr class="hover:bg-gray-800/50">
+    <td class="px-3 py-2">${gThumbHtml(a)}</td>
+    <td class="px-3 py-3 text-sm text-white">${esc(a.anunciante||'—')}${a.verificado?' <span class="text-goog text-[.6rem]">✓</span>':''}</td>
+    <td class="px-3 py-3 text-center">${GFMT[a.formato]||GFMT.unknown}</td>
+    <td class="px-3 py-3 max-w-[180px]"><div class="truncate text-sm">${esc(a.headline||'—')}</div></td>
+    <td class="px-3 py-3 max-w-[140px]">${a.url_destino?`<a href="${esc(a.url_destino)}" target="_blank" class="text-goog hover:underline truncate block text-xs">${truncUrl(a.url_destino)}</a>`:'<span class="text-gray-600 text-xs">—</span>'}</td>
+    <td class="px-3 py-3 text-center">${gDateRange(a)}</td>
+    <td class="px-3 py-3 text-center">${gActionBtns(a)}</td>
+  </tr>`).join('');
+}
+
+function renderOvAds(d){
+  const tb=document.getElementById('ovAdsBody');const ads=d.anuncios||[];
+  if(!ads.length){tb.innerHTML='<tr><td colspan="8" class="px-4 py-6 text-center text-gray-500">Nenhum anuncio</td></tr>';return;}
+  tb.innerHTML=ads.map(ad=>`<tr class="hover:bg-gray-800/50">
+    <td class="px-3 py-2">${thumbHtml(ad)}</td>
+    <td class="px-3 py-3 text-gray-400 font-mono text-xs whitespace-nowrap">${esc(ad.id_anuncio||'—')}</td>
+    <td class="px-3 py-3 whitespace-nowrap text-sm">${esc(ad.anunciante||'—')}</td>
+    <td class="px-3 py-3 max-w-[200px]"><div class="truncate text-sm" title="${esc(ad.texto_anuncio||'')}">${esc(ad.texto_anuncio||'—')}</div></td>
+    <td class="px-3 py-3 max-w-[180px]"><a href="${esc(ad.url_destino_real||'#')}" target="_blank" class="text-fb hover:underline truncate block text-sm">${truncUrl(ad.url_destino_real)}</a>
+    ${ad.page_title?`<div class="text-xs text-gray-500 truncate mt-0.5">${esc(ad.page_title)}</div>`:''}</td>
+    <td class="px-3 py-3 text-center">${nicheTag(ad._niche)}</td>
+    <td class="px-3 py-3 text-center">${badge(ad.url_online,ad.url_status)}</td>
+    <td class="px-3 py-3 text-center">${actionBtns(ad)}</td>
+  </tr>`).join('');
+}
+
+function renderOvUrls(d){
+  const tb=document.getElementById('ovUrlsBody');const urls=d.urls_unicas||[];
+  if(!urls.length){tb.innerHTML='<tr><td colspan="5" class="px-4 py-6 text-center text-gray-500">Nenhuma URL</td></tr>';return;}
+  tb.innerHTML=urls.map(u=>`<tr class="hover:bg-gray-800/50">
+    <td class="px-4 py-3 max-w-[250px]"><a href="${esc(u.url)}" target="_blank" class="text-fb hover:underline truncate block">${truncUrl(u.url)}</a></td>
+    <td class="px-4 py-3 max-w-[250px]"><span class="truncate block text-gray-400">${truncUrl(u.url_final)}</span></td>
+    <td class="px-4 py-3 max-w-[200px]"><span class="truncate block">${esc(u.page_title||'—')}</span></td>
+    <td class="px-4 py-3 text-center font-mono text-xs">${u.status||'—'}</td>
+    <td class="px-4 py-3 text-center">${badge(u.online,u.status)}</td>
+  </tr>`).join('');
+}
+
+function switchDtab(t){
+  const isG=t==='gads';
+  document.querySelectorAll('.dtab').forEach(b=>{const a=b.dataset.dt===t;b.classList.toggle('active',a);b.style.color=a?(isG?'#34A853':'#1877F2'):'#6b7280';b.style.borderBottomColor=a?(isG?'#34A853':'#1877F2'):'transparent';});
+  document.getElementById('dtAds').classList.toggle('hidden',t!=='ads');
+  document.getElementById('dtUrls').classList.toggle('hidden',t!=='urls');
+  document.getElementById('dtGads').classList.toggle('hidden',t!=='gads');
+}
+document.querySelectorAll('.dtab').forEach(b=>{b.style.padding='.625rem 1.25rem';b.style.fontSize='.875rem';b.style.fontWeight='500';b.style.borderBottom='2px solid transparent';b.style.cursor='pointer';b.addEventListener('click',()=>switchDtab(b.dataset.dt));});
+document.getElementById('ovDetClose').addEventListener('click',()=>{OV.sel=null;document.getElementById('ovDetail').classList.add('hidden');renderOvTable();});
+document.querySelectorAll('#sec-overview .sort-col').forEach(th=>{th.addEventListener('click',()=>{const c=th.dataset.sc;if(OV.sort===c)OV.dir=OV.dir==='asc'?'desc':'asc';else{OV.sort=c;OV.dir=c==='dominio'?'asc':'desc';}renderOvTable();});});
+document.getElementById('ovSearch').addEventListener('input',renderOvTable);
+document.getElementById('ovNiche').addEventListener('change',renderOvTable);
+document.getElementById('ovExport').addEventListener('click',()=>{
+  if(!DATA)return;const res=getOvFiltered();
+  const header=['Dominio','FB Ads','FB Anunciantes'];
+  if(hasGoogle) header.push('Google Ads','Google Criativos');
+  header.push('URLs','Ads/URL','Nicho','Online','Offline');
+  const rows=[header];
+  res.forEach(d=>{const row=[d.dominio,d.total_anuncios||0,(d.anunciantes||[]).length];if(hasGoogle)row.push(d.google_total_anuncios||0,(d.google_criativos||[]).length);row.push(Array.isArray(d.urls_unicas)?d.urls_unicas.length:0,d._ratio.toFixed(1),NL[d._topNiche],d.total_urls_online||0,d.total_urls_offline||0);rows.push(row);});
+  downloadCSV(rows,'overview');
+});
+
+// ========== MIDIA ==========
+function buildMediaGroups(){
+  const map={};
+  for(const ad of allAdsFlat){
+    const fp=ad._mediaFP;
+    if(!fp)continue;
+    if(!map[fp])map[fp]={fp,ads:[],domains:new Set(),advertisers:new Set(),niche:'',videoUrl:'',thumbUrl:'',sampleAd:null};
+    const g=map[fp];
+    g.ads.push(ad);
+    g.domains.add(ad._domain);
+    if(ad.anunciante)g.advertisers.add(ad.anunciante);
+    if(!g.niche||g.niche==='other')g.niche=ad._niche;
+    const bv=bestVideoUrl(ad);
+    if(!g.videoUrl&&bv)g.videoUrl=bv;
+    if(!g.isHd&&ad.video_hd_url)g.isHd=true;
+    if(!g.thumbUrl&&ad.thumbnail_url&&!ad.thumbnail_url.startsWith('data:'))g.thumbUrl=ad.thumbnail_url;
+    if(!g.sampleAd)g.sampleAd=ad;
+  }
+  return Object.values(map);
+}
+
+function renderMidia(){
+  let groups=buildMediaGroups();
+  const n=document.getElementById('mdNiche').value;
+  if(n)groups=groups.filter(g=>g.niche===n);
+  const sort=document.getElementById('mdSort').value;
+  if(sort==='domains')groups.sort((a,b)=>b.domains.size-a.domains.size||b.ads.length-a.ads.length);
+  else groups.sort((a,b)=>b.ads.length-a.ads.length);
+
+  const multi=groups.filter(g=>g.ads.length>1);
+  document.getElementById('mdCount').textContent=`${multi.length} midias repetidas de ${groups.length} total`;
+
+  const show=groups.slice(0,80);
+  document.getElementById('mdCards').innerHTML=show.map((g,i)=>{
+    const ad=g.sampleAd;
+    const isRepeat=g.ads.length>1;
+    const borderCls=isRepeat?'border-fb/40':'border-gray-800';
+    const hasVideo=!!g.videoUrl;
+    const previewSrc=g.thumbUrl||g.videoUrl||'';
+    const previewHtml=previewSrc&&!previewSrc.startsWith('blob:')
+      ?`<img src="${esc(previewSrc)}" class="w-40 h-24 object-cover rounded-lg bg-gray-800 flex-shrink-0" onerror="this.outerHTML='<div class=\\'w-40 h-24 rounded-lg bg-gray-800 flex items-center justify-center text-gray-600 text-xs flex-shrink-0\\'>Sem preview</div>'" loading="lazy">`
+      :'<div class="w-40 h-24 rounded-lg bg-gray-800 flex items-center justify-center text-gray-600 text-xs flex-shrink-0">Sem preview</div>';
+
+    const fbUrl=fbAdUrl(ad.id_anuncio);
+    const allFbLinks=g.ads.filter(a=>a.id_anuncio).map(a=>`<a href="${fbAdUrl(a.id_anuncio)}" target="_blank" class="btn-sm btn-fb">ID ${a.id_anuncio.slice(-6)}</a>`);
+
+    return`<div class="media-card bg-gray-900 border ${borderCls} rounded-xl p-4 flex gap-4">
+      <div class="flex-shrink-0 relative">
+        ${previewHtml}
+        ${hasVideo?'<div class="absolute inset-0 w-40 h-24 flex items-center justify-center"><div class="w-9 h-9 bg-black/60 rounded-full flex items-center justify-center"><svg class="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>':''}
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-white font-bold text-lg">${g.ads.length}x</span>
+          ${isRepeat?'<span class="tag" style="background:rgba(251,191,36,.15);color:#fbbf24">REPETIDO</span>':''}
+          ${g.isHd?'<span class="tag" style="background:rgba(16,185,129,.15);color:#34d399;font-weight:700">HD 720p</span>':''}
+          ${nicheTag(g.niche)}
+          ${langTag(ad._lang)}
+          <span class="text-xs text-gray-500 ml-auto">${g.domains.size} dominios · ${g.advertisers.size} anunciantes</span>
+        </div>
+        <div class="text-sm text-gray-300 truncate mb-2" title="${esc(ad.texto_anuncio||'')}">${esc(ad.texto_anuncio||'Sem texto')}</div>
+        <div class="flex flex-wrap gap-1 mb-2">${[...g.domains].map(d=>`<span class="text-[.6rem] bg-gray-800 text-gray-400 px-2 py-0.5 rounded">${d}</span>`).join('')}</div>
+        <div class="flex flex-wrap items-center gap-2">
+          ${g.videoUrl?`<a href="${esc(g.videoUrl)}" target="_blank" download class="btn-sm btn-dl">&#11015; ${g.isHd?'Baixar HD':'Baixar SD'}</a>`:''}
+          ${fbUrl?`<a href="${esc(fbUrl)}" target="_blank" class="btn-sm btn-fb">Ver no Facebook</a>`:''}
+          ${g.ads.length>1?`<details class="inline"><summary class="btn-sm btn-cp cursor-pointer">Todos os ${g.ads.length} anuncios</summary><div class="flex flex-wrap gap-1 mt-2">${allFbLinks.join('')}</div></details>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+document.getElementById('mdNiche').addEventListener('change',renderMidia);
+document.getElementById('mdSort').addEventListener('change',renderMidia);
+
+// ========== REDES ==========
+function _buildClusters(advDomains, allResults) {
+  const domainPairs={},domainSharedAdvs={};
+  for(const[adv,doms]of Object.entries(advDomains)){
+    const list=[...doms].sort();
+    for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){
+      const key=list[i]+'|'+list[j];
+      domainPairs[key]=(domainPairs[key]||0)+1;
+      (domainSharedAdvs[key]=domainSharedAdvs[key]||[]).push(adv);
+    }
+  }
+  const parent={};
+  function find(x){if(parent[x]!==x)parent[x]=find(parent[x]);return parent[x];}
+  function union(a,b){parent[find(a)]=find(b);}
+  for(const d of allResults)parent[d.dominio]=d.dominio;
+  for(const[key,count]of Object.entries(domainPairs))if(count>=3){const[a,b]=key.split('|');union(a,b);}
+  const clusters={};
+  for(const d of allResults){const root=find(d.dominio);(clusters[root]=clusters[root]||[]).push(d);}
+  return {clusters:Object.values(clusters).filter(c=>c.length>1).sort((a,b)=>b.length-a.length), domainPairs, domainSharedAdvs};
+}
+function _renderClusterCards(clusters, domainPairs, domainSharedAdvs, adsKey, color) {
+  return clusters.map((cluster,idx)=>{
+    const totalAds=cluster.reduce((s,d)=>s+(d[adsKey]||0),0);
+    const advKey=adsKey==='total_anuncios'?'anunciantes':'google_anunciantes';
+    const advs=new Set();cluster.forEach(d=>(d[advKey]||[]).forEach(a=>advs.add(a)));
+    const doms=cluster.map(d=>d.dominio).sort();
+    const pairs=[];
+    for(let i=0;i<doms.length;i++)for(let j=i+1;j<doms.length;j++){const k=doms[i]+'|'+doms[j];if(domainPairs[k])pairs.push({d1:doms[i],d2:doms[j],count:domainPairs[k],advs:domainSharedAdvs[k]});}
+    pairs.sort((a,b)=>b.count-a.count);
+    return`<div class="cluster-card bg-gray-900 border border-gray-800 rounded-xl p-5">
+      <div class="flex items-center gap-3 mb-3"><span class="${color==='fb'?'bg-fb/20 text-fb':'bg-goog/20 text-goog'} text-xs font-bold px-3 py-1 rounded-full">Cluster ${idx+1}</span><span class="text-sm text-gray-400">${cluster.length} dominios · ${totalAds.toLocaleString('pt-BR')} ads · ${advs.size} anunciantes</span></div>
+      <div class="flex flex-wrap gap-2 mb-3">${doms.map(d=>`<span class="bg-gray-800 text-white text-xs px-3 py-1 rounded-full font-medium">${d}</span>`).join('')}</div>
+      <div class="text-xs text-gray-500 mb-2">Conexoes mais fortes:</div>
+      <div class="space-y-1">${pairs.slice(0,5).map(p=>`<div class="text-xs text-gray-400"><span class="text-white">${p.d1}</span> ↔ <span class="text-white">${p.d2}</span> <span class="${color==='fb'?'text-fb':'text-goog'} ml-1">${p.count} em comum</span> <span class="text-gray-600 ml-1">(${p.advs.slice(0,3).join(', ')}${p.advs.length>3?'...':''})</span></div>`).join('')}</div>
+    </div>`;
+  }).join('');
+}
+function _renderAdvTable(advDomains, tbId) {
+  const sorted=Object.entries(advDomains).map(([name,doms])=>({name,doms:[...doms].sort(),count:doms.size})).filter(a=>a.count>1).sort((a,b)=>b.count-a.count);
+  document.getElementById(tbId).innerHTML=sorted.map(a=>`<tr class="hover:bg-gray-800/50">
+    <td class="px-4 py-3 font-medium text-white">${esc(a.name)}</td>
+    <td class="px-4 py-3 text-right tabular-nums font-bold">${a.count}</td>
+    <td class="px-4 py-3"><div class="flex flex-wrap gap-1">${a.doms.map(d=>`<span class="bg-gray-800 text-gray-400 text-xs px-2 py-0.5 rounded">${d}</span>`).join('')}</div></td>
+  </tr>`).join('')||'<tr><td colspan="3" class="px-4 py-6 text-center text-gray-500">Nenhum anunciante opera em mais de um dominio</td></tr>';
+}
+function renderRedes(){
+  const r=DATA.resultados||[];
+  const advDomainsFb={}, advDomainsG={};
+  for(const d of r){
+    for(const a of(d.anunciantes||[]))(advDomainsFb[a]=advDomainsFb[a]||new Set()).add(d.dominio);
+    for(const a of(d.google_anunciantes||[]))(advDomainsG[a]=advDomainsG[a]||new Set()).add(d.dominio);
+  }
+
+  // FB clusters
+  const fb=_buildClusters(advDomainsFb, r);
+  const containerFb=document.getElementById('networkClustersFb');
+  if(!fb.clusters.length) containerFb.innerHTML='<p class="text-gray-500">Nenhum cluster Facebook detectado.</p>';
+  else containerFb.innerHTML=_renderClusterCards(fb.clusters, fb.domainPairs, fb.domainSharedAdvs, 'total_anuncios', 'fb');
+  _renderAdvTable(advDomainsFb, 'advNetBodyFb');
+
+  // Google clusters
+  if(hasGoogle){
+    const g=_buildClusters(advDomainsG, r);
+    const containerG=document.getElementById('networkClustersG');
+    if(!g.clusters.length) containerG.innerHTML='<p class="text-gray-500">Nenhum cluster Google detectado.</p>';
+    else containerG.innerHTML=_renderClusterCards(g.clusters, g.domainPairs, g.domainSharedAdvs, 'google_total_anuncios', 'g');
+    _renderAdvTable(advDomainsG, 'advNetBodyG');
+  }
+}
+
+// ========== CONTEUDOS ==========
+function buildContentData(){
+  const map={};
+  for(const ad of allAdsFlat){
+    const cid=ad._contentId;if(!cid)continue;
+    if(!map[cid])map[cid]={id:cid,ads:0,domains:new Set(),advertisers:new Set(),title:'',path:'',niche:''};
+    const e=map[cid];e.ads++;e.domains.add(ad._domain);if(ad.anunciante)e.advertisers.add(ad.anunciante);
+    if(!e.title&&ad.page_title)e.title=ad.page_title;
+    if(!e.path)try{e.path=new URL(ad.url_destino_real).pathname;}catch{}
+    if(!e.niche)e.niche=ad._niche;
+  }
+  return Object.values(map).sort((a,b)=>b.ads-a.ads);
+}
+function renderConteudos(){
+  const items=buildContentData();
+  const q=(document.getElementById('ctSearch').value||'').toLowerCase().trim();
+  const n=document.getElementById('ctNiche').value;
+  let filtered=items;
+  if(q)filtered=filtered.filter(c=>c.id.includes(q)||c.title.toLowerCase().includes(q));
+  if(n)filtered=filtered.filter(c=>c.niche===n);
+  document.getElementById('ctBody').innerHTML=filtered.map((c,i)=>`<tr class="hover:bg-gray-800/50">
+    <td class="px-4 py-3 text-right text-gray-500 tabular-nums">${i+1}</td>
+    <td class="px-4 py-3 font-mono text-fb font-medium">${esc(c.id)}</td>
+    <td class="px-4 py-3 max-w-[250px]"><div class="truncate" title="${esc(c.title)}">${esc(c.title||'—')}</div></td>
+    <td class="px-4 py-3 text-right tabular-nums font-bold text-white">${c.ads}</td>
+    <td class="px-4 py-3 text-right tabular-nums">${c.domains.size}</td>
+    <td class="px-4 py-3 text-right tabular-nums">${c.advertisers.size}</td>
+    <td class="px-4 py-3 text-center">${nicheTag(c.niche)}</td>
+    <td class="px-4 py-3 text-gray-400 text-xs">${esc(c.path)}</td>
+  </tr>`).join('')||'<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">Nenhum conteudo</td></tr>';
+}
+document.getElementById('ctSearch').addEventListener('input',renderConteudos);
+document.getElementById('ctNiche').addEventListener('change',renderConteudos);
+
+// ========== CRIATIVOS ==========
+function buildCopyData(){
+  const map={};
+  for(const ad of allAdsFlat){
+    const raw=(ad.texto_anuncio||'').trim();if(!raw||raw.length<15)continue;
+    const key=raw.substring(0,100).toLowerCase().replace(/\s+/g,' ');
+    if(!map[key])map[key]={text:raw,count:0,niche:'',lang:'',domains:new Set(),advertisers:new Set()};
+    const e=map[key];e.count++;e.domains.add(ad._domain);if(ad.anunciante)e.advertisers.add(ad.anunciante);
+    if(!e.niche||e.niche==='other')e.niche=ad._niche;if(!e.lang||e.lang==='?')e.lang=ad._lang;
+    if(raw.length>e.text.length)e.text=raw;
+  }
+  return Object.values(map).sort((a,b)=>b.count-a.count);
+}
+function renderCriativos(){
+  const items=buildCopyData();
+  const n=document.getElementById('cpNiche').value;const l=document.getElementById('cpLang').value;
+  let filtered=items;if(n)filtered=filtered.filter(c=>c.niche===n);if(l)filtered=filtered.filter(c=>c.lang===l);
+  document.getElementById('cpCards').innerHTML=filtered.slice(0,50).map((c,i)=>`
+    <div class="copy-card bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="bg-fb/20 text-fb text-xs font-bold px-2 py-0.5 rounded-full">#${i+1}</span>
+        <span class="text-white text-sm font-bold">${c.count}x</span>
+        ${nicheTag(c.niche)} ${langTag(c.lang)}
+        <span class="text-xs text-gray-500 ml-auto">${c.domains.size} dom · ${c.advertisers.size} anunc</span>
+      </div>
+      <div class="expand-text text-sm text-gray-300 leading-relaxed mb-2 cursor-pointer" onclick="this.classList.toggle('open')" title="Clique para expandir">${esc(c.text)}</div>
+      <div class="flex items-center gap-2">
+        <button onclick="navigator.clipboard.writeText(this.closest('.copy-card').querySelector('.expand-text').textContent.trim());this.textContent='Copiado!';setTimeout(()=>this.textContent='Copiar',1500)" class="btn-sm btn-cp">Copiar</button>
+        <div class="flex flex-wrap gap-1 ml-2">${[...c.domains].slice(0,4).map(d=>`<span class="text-[.6rem] bg-gray-800 text-gray-500 px-2 py-0.5 rounded">${d}</span>`).join('')}${c.domains.size>4?`<span class="text-[.6rem] text-gray-600">+${c.domains.size-4}</span>`:''}</div>
+      </div>
+    </div>
+  `).join('')||'<p class="text-gray-500">Nenhum criativo encontrado.</p>';
+}
+document.getElementById('cpNiche').addEventListener('change',renderCriativos);
+document.getElementById('cpLang').addEventListener('change',renderCriativos);
+
+// ========== BUSCA GLOBAL ==========
+function renderGlobalSearch(){
+  const q=(document.getElementById('gsQuery').value||'').toLowerCase().trim();
+  const n=document.getElementById('gsNiche').value;const l=document.getElementById('gsLang').value;
+  let results=allAdsFlat;
+  if(n)results=results.filter(a=>a._niche===n);if(l)results=results.filter(a=>a._lang===l);
+  if(q)results=results.filter(a=>[a._domain,a.anunciante,a.texto_anuncio,a.url_destino_real,a.page_title,a.page_description,a.id_anuncio].join(' ').toLowerCase().includes(q));
+  document.getElementById('gsCount').textContent=`${results.length.toLocaleString('pt-BR')} resultados`;
+  const MAX=200;const shown=results.slice(0,MAX);
+  const tb=document.getElementById('gsBody');
+  if(!shown.length){tb.innerHTML='<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">Nenhum resultado</td></tr>';return;}
+  tb.innerHTML=shown.map(ad=>`<tr class="hover:bg-gray-800/50">
+    <td class="px-3 py-2">${thumbHtml(ad)}</td>
+    <td class="px-3 py-3 text-xs text-gray-400 whitespace-nowrap">${esc(ad._domain)}</td>
+    <td class="px-3 py-3 whitespace-nowrap text-sm">${esc(ad.anunciante||'—')}</td>
+    <td class="px-3 py-3 max-w-[200px]"><div class="truncate text-sm" title="${esc(ad.texto_anuncio||'')}">${esc(ad.texto_anuncio||'—')}</div></td>
+    <td class="px-3 py-3 max-w-[180px]"><a href="${esc(ad.url_destino_real||'#')}" target="_blank" class="text-fb hover:underline truncate block text-sm">${truncUrl(ad.url_destino_real)}</a>
+    ${ad.page_title?`<div class="text-xs text-gray-500 truncate mt-0.5">${esc(ad.page_title)}</div>`:''}</td>
+    <td class="px-3 py-3 text-center">${nicheTag(ad._niche)}</td>
+    <td class="px-3 py-3 text-center">${badge(ad.url_online,ad.url_status)}</td>
+    <td class="px-3 py-3 text-center">${actionBtns(ad)}</td>
+  </tr>`).join('');
+  if(results.length>MAX)tb.innerHTML+=`<tr><td colspan="8" class="px-4 py-3 text-center text-gray-500 text-xs">Mostrando ${MAX} de ${results.length.toLocaleString('pt-BR')}. Refine a busca.</td></tr>`;
+}
+let gsDebounce;
+document.getElementById('gsQuery').addEventListener('input',()=>{clearTimeout(gsDebounce);gsDebounce=setTimeout(renderGlobalSearch,200);});
+document.getElementById('gsNiche').addEventListener('change',renderGlobalSearch);
+document.getElementById('gsLang').addEventListener('change',renderGlobalSearch);
+
+// ========== GOOGLE ADS ==========
+const GFMT={video:'<span class="tag" style="background:rgba(239,68,68,.15);color:#f87171">Video</span>',image:'<span class="tag" style="background:rgba(59,130,246,.15);color:#60a5fa">Imagem</span>',text:'<span class="tag" style="background:rgba(100,116,139,.15);color:#94a3b8">Texto</span>',unknown:'<span class="tag tag-other">?</span>'};
+
+function gThumbHtml(a){
+  const src=a.thumbnail_detail||a.thumbnail_url||'';
+  if(!src)return'<div class="thumb flex items-center justify-center text-gray-600 text-xs">—</div>';
+  const hasVid=!!a.video_url;
+  return`<div class="relative"><img src="${esc(src)}" class="thumb" onerror="this.outerHTML='<div class=\\'thumb flex items-center justify-center text-gray-600 text-xs\\'>—</div>'" loading="lazy">${hasVid?'<div class="absolute inset-0 flex items-center justify-center"><div class="w-7 h-7 bg-black/60 rounded-full flex items-center justify-center"><svg class="w-3 h-3 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>':''}</div>`;
+}
+function gActionBtns(a){
+  let html='<div class="flex flex-col gap-1">';
+  if(a.url_transparency)html+=`<a href="${esc(a.url_transparency)}" target="_blank" class="btn-sm" style="background:rgba(52,168,83,.15);color:#34d399">Google</a>`;
+  if(a.video_url){const vu=a.video_url.startsWith('//')?'https:'+a.video_url:a.video_url;html+=`<a href="${esc(vu)}" target="_blank" download class="btn-sm btn-dl">Video</a>`;}
+  if(a.url_destino)html+=`<a href="${esc(a.url_destino)}" target="_blank" class="btn-sm btn-fb text-[.6rem]">Landing</a>`;
+  html+='</div>';return html;
+}
+function gDateRange(a){
+  if(!a.first_shown&&!a.last_shown)return'<span class="text-gray-600">—</span>';
+  const f=(a.first_shown||'').slice(5);const l=(a.last_shown||'').slice(5);
+  return`<span class="text-[.65rem] text-gray-400">${f}${l?' → '+l:''}</span>`;
+}
+
+function renderGoogle(){
+  const r=DATA.resultados||[];
+  const gDoms=r.filter(d=>(d.google_total_anuncios||0)>0);
+  const totalAds=r.reduce((s,d)=>s+(d.google_total_anuncios||0),0);
+  const fmts={};allGoogleAds.forEach(a=>{const f=a.formato||'unknown';fmts[f]=(fmts[f]||0)+1;});
+  const verified=allGoogleAds.filter(a=>a.verificado).length;
+  const withDetail=allGoogleAds.filter(a=>a.detalhe_extraido).length;
+  const withVideo=allGoogleAds.filter(a=>a.video_url).length;
+  const withLanding=allGoogleAds.filter(a=>a.url_destino).length;
+  const gAdvSet=new Set();r.forEach(d=>(d.google_anunciantes||[]).forEach(a=>gAdvSet.add(a)));
+
+  const kpis=[
+    {l:'Dominios com Ads',v:gDoms.length,c:'text-goog'},
+    {l:'Criativos Extraidos',v:allGoogleAds.length,c:'text-purple-400'},
+    {l:'Com Detalhe',v:withDetail,c:'text-goog'},
+    {l:'Com Video',v:withVideo,c:'text-red-400'},
+    {l:'Landing Pages',v:withLanding,c:'text-blue-400'},
+    {l:'Formatos',v:Object.entries(fmts).map(([k,v])=>`${k}: ${v}`).join(', '),c:'text-gray-400',small:true},
+  ];
+  document.getElementById('gKpiRow').innerHTML=kpis.map(k=>`
+    <div class="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
+      <div class="text-[.65rem] text-gray-500 uppercase tracking-wider mb-1">${k.l}</div>
+      <div class="${k.small?'text-xs':'text-xl'} font-bold ${k.c}">${k.v}</div>
+    </div>`).join('');
+  renderGoogleTable();
+}
+function renderGoogleTable(){
+  const q=(document.getElementById('gSearch').value||'').toLowerCase().trim();
+  const fmt=document.getElementById('gFormat').value;
+  const onlyVerified=document.getElementById('gVerified').checked;
+  const onlyDetail=document.getElementById('gWithDetail').checked;
+  let ads=allGoogleAds;
+  if(q)ads=ads.filter(a=>[a._domain,a.anunciante,a.creative_id,a.headline,a.description,a.url_destino].join(' ').toLowerCase().includes(q));
+  if(fmt)ads=ads.filter(a=>a.formato===fmt);
+  if(onlyVerified)ads=ads.filter(a=>a.verificado);
+  if(onlyDetail)ads=ads.filter(a=>a.detalhe_extraido);
+  document.getElementById('gCount').textContent=`${ads.length.toLocaleString('pt-BR')} criativos`;
+  const MAX=300;const shown=ads.slice(0,MAX);
+  const tb=document.getElementById('gBody');
+  if(!shown.length){tb.innerHTML='<tr><td colspan="9" class="px-4 py-8 text-center text-gray-500">Nenhum resultado</td></tr>';return;}
+  tb.innerHTML=shown.map(a=>`<tr class="hover:bg-gray-800/50">
+    <td class="px-3 py-2">${gThumbHtml(a)}</td>
+    <td class="px-3 py-3 text-xs text-gray-400 whitespace-nowrap">${esc(a._domain)}</td>
+    <td class="px-3 py-3 text-sm text-white">${esc(a.anunciante||'—')}${a.verificado?' <span class="text-goog text-[.6rem]">✓</span>':''}</td>
+    <td class="px-3 py-3 text-center">${GFMT[a.formato]||GFMT.unknown}</td>
+    <td class="px-3 py-3 max-w-[200px]"><div class="truncate text-sm font-medium text-white">${esc(a.headline||'—')}</div>${a.description?`<div class="truncate text-xs text-gray-500 mt-0.5">${esc(a.description)}</div>`:''}</td>
+    <td class="px-3 py-3 max-w-[160px]">${a.url_destino?`<a href="${esc(a.url_destino)}" target="_blank" class="text-goog hover:underline truncate block text-xs">${truncUrl(a.url_destino)}</a>`:'<span class="text-gray-600 text-xs">—</span>'}</td>
+    <td class="px-3 py-3 text-center">${gDateRange(a)}</td>
+    <td class="px-3 py-3 text-center tabular-nums text-xs ${(a.dias_ativo||0)>=30?'text-goog font-bold':(a.dias_ativo||0)>=7?'text-amber-400':'text-gray-500'}">${a.dias_ativo||'—'}</td>
+    <td class="px-3 py-3 text-center">${gActionBtns(a)}</td>
+  </tr>`).join('');
+  if(ads.length>MAX)tb.innerHTML+=`<tr><td colspan="9" class="px-4 py-3 text-center text-gray-500 text-xs">Mostrando ${MAX} de ${ads.length.toLocaleString('pt-BR')}.</td></tr>`;
+}
+let gDebounce;
+document.getElementById('gSearch').addEventListener('input',()=>{clearTimeout(gDebounce);gDebounce=setTimeout(renderGoogleTable,200);});
+document.getElementById('gFormat').addEventListener('change',renderGoogleTable);
+document.getElementById('gVerified').addEventListener('change',renderGoogleTable);
+document.getElementById('gWithDetail').addEventListener('change',renderGoogleTable);
+
+// ========== MIDIA GOOGLE ==========
+function buildGMediaGroups(){
+  const map={};
+  for(const a of allGoogleAds){
+    const fp=a.simgad_id||a.creative_id||'';
+    if(!fp)continue;
+    if(!map[fp])map[fp]={fp,ads:[],domains:new Set(),advertisers:new Set(),formato:'',videoUrl:'',thumbUrl:'',headline:'',landing:'',maxDias:0,sampleAd:null};
+    const g=map[fp];g.ads.push(a);g.domains.add(a._domain);
+    if(a.anunciante)g.advertisers.add(a.anunciante);
+    if(!g.formato||g.formato==='unknown')g.formato=a.formato;
+    if(!g.videoUrl&&a.video_url)g.videoUrl=a.video_url;
+    if(!g.thumbUrl&&(a.thumbnail_detail||a.thumbnail_url))g.thumbUrl=a.thumbnail_detail||a.thumbnail_url;
+    if(!g.headline&&a.headline)g.headline=a.headline;
+    if(!g.landing&&a.url_destino)g.landing=a.url_destino;
+    if((a.dias_ativo||0)>g.maxDias)g.maxDias=a.dias_ativo;
+    if(!g.sampleAd)g.sampleAd=a;
+  }
+  return Object.values(map);
+}
+function renderGMidia(){
+  let groups=buildGMediaGroups();
+  const fmt=document.getElementById('gmFormat').value;
+  if(fmt)groups=groups.filter(g=>g.formato===fmt);
+  const sort=document.getElementById('gmSort').value;
+  if(sort==='domains')groups.sort((a,b)=>b.domains.size-a.domains.size||b.ads.length-a.ads.length);
+  else if(sort==='longevity')groups.sort((a,b)=>b.maxDias-a.maxDias);
+  else groups.sort((a,b)=>b.ads.length-a.ads.length);
+  const multi=groups.filter(g=>g.ads.length>1);
+  document.getElementById('gmCount').textContent=`${multi.length} midias repetidas de ${groups.length} total`;
+  const show=groups.slice(0,80);
+  document.getElementById('gmCards').innerHTML=show.map((g,i)=>{
+    const isRepeat=g.ads.length>1;
+    const borderCls=isRepeat?'border-goog/40':'border-gray-800';
+    const previewSrc=g.thumbUrl||'';
+    const previewHtml=previewSrc?`<img src="${esc(previewSrc)}" class="w-40 h-24 object-cover rounded-lg bg-gray-800 flex-shrink-0" onerror="this.outerHTML='<div class=\\'w-40 h-24 rounded-lg bg-gray-800 flex items-center justify-center text-gray-600 text-xs flex-shrink-0\\'>—</div>'" loading="lazy">`:'<div class="w-40 h-24 rounded-lg bg-gray-800 flex items-center justify-center text-gray-600 text-xs flex-shrink-0">—</div>';
+    const vidUrl=g.videoUrl?(g.videoUrl.startsWith('//')?'https:'+g.videoUrl:g.videoUrl):'';
+    return`<div class="media-card bg-gray-900 border ${borderCls} rounded-xl p-4 flex gap-4">
+      <div class="flex-shrink-0 relative">${previewHtml}${g.videoUrl?'<div class="absolute inset-0 w-40 h-24 flex items-center justify-center"><div class="w-9 h-9 bg-black/60 rounded-full flex items-center justify-center"><svg class="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>':''}</div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-white font-bold text-lg">${g.ads.length}x</span>
+          ${isRepeat?'<span class="tag" style="background:rgba(251,191,36,.15);color:#fbbf24">REPETIDO</span>':''}
+          ${GFMT[g.formato]||GFMT.unknown}
+          ${g.maxDias>=30?`<span class="tag" style="background:rgba(52,168,83,.15);color:#34d399">${g.maxDias}d ativo</span>`:''}
+          <span class="text-xs text-gray-500 ml-auto">${g.domains.size} dom · ${g.advertisers.size} anunc</span>
+        </div>
+        ${g.headline?`<div class="text-sm font-medium text-white truncate mb-1">${esc(g.headline)}</div>`:''}
+        ${g.landing?`<a href="${esc(g.landing)}" target="_blank" class="text-xs text-goog hover:underline truncate block mb-2">${truncUrl(g.landing)}</a>`:''}
+        <div class="flex flex-wrap gap-1 mb-2">${[...g.domains].map(d=>`<span class="text-[.6rem] bg-gray-800 text-gray-400 px-2 py-0.5 rounded">${d}</span>`).join('')}</div>
+        <div class="flex flex-wrap items-center gap-2">
+          ${vidUrl?`<a href="${esc(vidUrl)}" target="_blank" download class="btn-sm btn-dl">&#11015; Baixar Video</a>`:''}
+          ${g.sampleAd?.url_transparency?`<a href="${esc(g.sampleAd.url_transparency)}" target="_blank" class="btn-sm" style="background:rgba(52,168,83,.15);color:#34d399">Ver no Google</a>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('')||'<p class="text-gray-500">Nenhum criativo Google encontrado.</p>';
+}
+document.getElementById('gmFormat').addEventListener('change',renderGMidia);
+document.getElementById('gmSort').addEventListener('change',renderGMidia);
+
+// ========== BUSCA GOOGLE ==========
+function renderGBusca(){
+  const q=(document.getElementById('gbQuery').value||'').toLowerCase().trim();
+  const fmt=document.getElementById('gbFormat').value;
+  const onlyVerified=document.getElementById('gbVerified').checked;
+  let ads=allGoogleAds;
+  if(q)ads=ads.filter(a=>[a._domain,a.anunciante,a.creative_id,a.advertiser_id,a.headline,a.description,a.url_destino,a.visible_url].join(' ').toLowerCase().includes(q));
+  if(fmt)ads=ads.filter(a=>a.formato===fmt);
+  if(onlyVerified)ads=ads.filter(a=>a.verificado);
+  document.getElementById('gbCount').textContent=`${ads.length.toLocaleString('pt-BR')} criativos`;
+  const MAX=300;const shown=ads.slice(0,MAX);
+  const tb=document.getElementById('gbBody');
+  if(!shown.length){tb.innerHTML='<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Nenhum resultado</td></tr>';return;}
+  tb.innerHTML=shown.map(a=>`<tr class="hover:bg-gray-800/50">
+    <td class="px-3 py-2">${gThumbHtml(a)}</td>
+    <td class="px-3 py-3 text-xs text-gray-400 whitespace-nowrap">${esc(a._domain)}</td>
+    <td class="px-3 py-3 text-sm text-white">${esc(a.anunciante||'—')}${a.verificado?' <span class="text-goog text-[.6rem]">✓</span>':''}</td>
+    <td class="px-3 py-3 text-center">${GFMT[a.formato]||GFMT.unknown}</td>
+    <td class="px-3 py-3 max-w-[200px]"><div class="truncate text-sm">${esc(a.headline||'—')}</div>${a.description?`<div class="truncate text-xs text-gray-500">${esc(a.description)}</div>`:''}</td>
+    <td class="px-3 py-3 text-center">${gActionBtns(a)}</td>
+  </tr>`).join('');
+  if(ads.length>MAX)tb.innerHTML+=`<tr><td colspan="6" class="px-4 py-3 text-center text-gray-500 text-xs">Mostrando ${MAX} de ${ads.length.toLocaleString('pt-BR')}.</td></tr>`;
+}
+let gbDebounce;
+document.getElementById('gbQuery').addEventListener('input',()=>{clearTimeout(gbDebounce);gbDebounce=setTimeout(renderGBusca,200);});
+document.getElementById('gbFormat').addEventListener('change',renderGBusca);
+document.getElementById('gbVerified').addEventListener('change',renderGBusca);
+</script>
+</body>
+</html>
