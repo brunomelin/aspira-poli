@@ -80,8 +80,8 @@ async def _worker(
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
         ),
         "viewport": {"width": 1920, "height": 1080},
-        "locale": "en-US",
-        "timezone_id": "America/New_York",
+        "locale": "pt-BR",
+        "timezone_id": "America/Sao_Paulo",
     }
     # Carrega FB session (gerada por scripts/login.py) pra acessar ads age-restricted
     state_path = Path("storage_state.json")

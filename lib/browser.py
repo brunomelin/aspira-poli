@@ -38,8 +38,8 @@ async def create_browser_context(
     ctx_kwargs: dict = {
         "user_agent": USER_AGENT,
         "viewport": {"width": 1920, "height": 1080},
-        "locale": "en-US",
-        "timezone_id": "America/New_York",
+        "locale": "pt-BR",
+        "timezone_id": "America/Sao_Paulo",
     }
 
     # Storage state pra Facebook auth (gerado por scripts/login.py).
