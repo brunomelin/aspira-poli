@@ -209,6 +209,31 @@ async def _force_country_all(page: Page, domain: str) -> None:
             await all_text.first.click(timeout=4000)
         await page.wait_for_timeout(2500)
         logger.info("[%s] country forçado pra ALL via UI", domain)
+
+        # Quando muda country, Meta reseta o dropdown "Categoria de anúncio"
+        # pro default restrito (Temas/eleições/política). Precisa re-selecionar
+        # "Todos os anúncios" pra voltar ao escopo amplo.
+        try:
+            # 2º combobox da top-bar = categoria de anúncio
+            category_dropdown = page.locator(
+                'div[role="combobox"][aria-haspopup="listbox"]'
+            ).nth(1)
+            await category_dropdown.click(timeout=4000)
+            await page.wait_for_timeout(600)
+            # Click em "Todos os anúncios" (PT) ou "All ads" (EN)
+            all_ads_option = page.get_by_role("radio", name=re.compile(r"^(Todos os anúncios|All ads)$"))
+            try:
+                await all_ads_option.first.click(timeout=3000)
+            except PlaywrightTimeout:
+                # Fallback: text-based
+                all_ads_option = page.get_by_text(re.compile(r"^(Todos os anúncios|All ads)$"))
+                await all_ads_option.first.click(timeout=3000)
+            await page.wait_for_timeout(2000)
+            logger.info("[%s] categoria 'Todos os anúncios' re-selecionada", domain)
+        except PlaywrightTimeout:
+            logger.warning("[%s] timeout ao re-selecionar categoria — segue mesmo assim", domain)
+        except Exception as e:
+            logger.warning("[%s] erro ao re-selecionar categoria: %s", domain, e)
     except PlaywrightTimeout:
         logger.warning("[%s] timeout ao forçar country=ALL — segue com country atual", domain)
     except Exception as e:
