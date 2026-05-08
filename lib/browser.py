@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from playwright.async_api import BrowserContext, Page, Playwright
 from playwright_stealth import Stealth
 
@@ -33,12 +35,24 @@ async def create_browser_context(
     # Meta força ?country=BR mesmo quando a URL pede ALL — o que zera ads de
     # marcas não-brasileiras (Hers, etc). Setando en-US/New_York, o redirect
     # respeita ?country=ALL e servimos ads globais.
-    context = await browser.new_context(
-        user_agent=USER_AGENT,
-        viewport={"width": 1920, "height": 1080},
-        locale="en-US",
-        timezone_id="America/New_York",
-    )
+    ctx_kwargs: dict = {
+        "user_agent": USER_AGENT,
+        "viewport": {"width": 1920, "height": 1080},
+        "locale": "en-US",
+        "timezone_id": "America/New_York",
+    }
+
+    # Storage state pra Facebook auth (gerado por scripts/login.py).
+    # Permite scrapear ads age-restricted que exigem login. Use conta FB
+    # SECUNDÁRIA — Meta detecta automation logada e pode suspender.
+    state_path = Path("storage_state.json")
+    if state_path.exists():
+        ctx_kwargs["storage_state"] = str(state_path)
+        logger.info("storage_state.json encontrado — usando login persistente")
+    else:
+        logger.info("sem storage_state.json — rodando deslogado (ads 18+ ficam gated)")
+
+    context = await browser.new_context(**ctx_kwargs)
     return context
 
 

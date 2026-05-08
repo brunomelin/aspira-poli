@@ -6,6 +6,7 @@ output/
 
 # Cookies do Playwright (auth state caso use)
 cookies/
+storage_state.json
 
 # Listas de domínios privadas — copiar dominios.txt.example pra dominios.txt
 dominios.txt
