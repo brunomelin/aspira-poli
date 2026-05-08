@@ -109,10 +109,22 @@ async def scrape_domain(page: Page, domain: str) -> dict:
     #    → usa direto. Útil pra busca por page_id, advertiser_id, etc.
     # Em ambos os casos, o resto do pipeline (extração de cards, video map, etc.)
     # é idêntico — Meta renderiza os mesmos cards independente do search_type.
-    if is_full_ad_library_url(domain):
-        url = domain
+    #
+    # Sintaxe opcional 'URL|nome' (load_domains preserva): nome explícito pra
+    # match exato no autocomplete (resolve ambiguidade de "Prose" vs "Movistar
+    # Prosegur"). Sem pipe, aspira tenta capturar via og:title/h1 (frágil).
+    name_hint = ""
+    if "|" in domain:
+        url_part, _, name_hint = domain.partition("|")
+        domain_clean = url_part.strip()
+        name_hint = name_hint.strip()
     else:
-        url = build_url(domain)
+        domain_clean = domain
+
+    if is_full_ad_library_url(domain_clean):
+        url = domain_clean
+    else:
+        url = build_url(domain_clean)
     logger.info("[%s] Navegando para Ad Library...", domain)
 
     collector = VideoMapCollector()
@@ -121,19 +133,23 @@ async def scrape_domain(page: Page, domain: str) -> dict:
     await page.goto(url, wait_until="domcontentloaded", timeout=30000)
     await page.wait_for_timeout(3000)
 
-    # Captura o nome canônico da Page renderizada (via og:title / h1) ANTES de
-    # mexer no country picker. Será usado pra match exato no autocomplete depois
-    # do reset, evitando clicar em Page errada (ex: "Hera" no lugar de "Hers").
-    page_name = await page.evaluate(
-        """() => {
-            const og = document.querySelector('meta[property="og:title"]');
-            if (og && og.content) return og.content.trim();
-            const h1 = document.querySelector('h1');
-            return h1 ? h1.innerText.trim() : '';
-        }"""
-    )
-    if page_name:
-        logger.info("[%s] page_name detectado: %r", domain, page_name)
+    # page_name pra match exato no autocomplete. Prioridade:
+    # 1) name_hint do dominios.txt (sintaxe 'URL|nome') — confiável
+    # 2) Capturado da Page via og:title/h1 — frágil (timing async, SPA)
+    if name_hint:
+        page_name = name_hint
+        logger.info("[%s] page_name fornecido via dominios.txt: %r", domain, page_name)
+    else:
+        page_name = await page.evaluate(
+            """() => {
+                const og = document.querySelector('meta[property="og:title"]');
+                if (og && og.content) return og.content.trim();
+                const h1 = document.querySelector('h1');
+                return h1 ? h1.innerText.trim() : '';
+            }"""
+        )
+        if page_name:
+            logger.info("[%s] page_name capturado da página: %r", domain, page_name)
 
     # Meta redireciona ?country=ALL pro country do visitor (BR via IP) mesmo
     # com locale pt-BR. Forçamos via UI: click no dropdown country → "Tudo",
@@ -162,7 +178,8 @@ async def scrape_domain(page: Page, domain: str) -> dict:
     )
 
     return {
-        "dominio": domain,
+        "dominio": domain_clean,
+        "nome_canonico": name_hint,  # vazio se sem pipe — push_to_app trata
         "total_anuncios": total_ads,
         "anunciantes": advertisers,
         "anuncios": ads_data,

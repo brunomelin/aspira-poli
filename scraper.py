@@ -49,15 +49,31 @@ Exemplos:
     return parser.parse_args()
 
 
+def _normalize_line(line: str) -> str:
+    """Normaliza uma linha do dominios.txt. Suporta sintaxe 'URL|nome' onde
+    a parte URL pode ser domínio puro ou URL completa, e o nome é mantido
+    case-preserving (importante pro match exato do autocomplete).
+
+    Lowercase é aplicado SÓ na parte URL (idempotente pra URLs FB) e nunca
+    no nome — Meta renderiza 'Prose' capitalized e match é case-insensitive
+    no comparador final.
+    """
+    line = line.strip()
+    if "|" in line:
+        url_part, _, name_part = line.partition("|")
+        return f"{url_part.strip().lower()}|{name_part.strip()}"
+    return line.lower()
+
+
 def load_domains(args: argparse.Namespace) -> list:
     if args.domain:
-        return [d.strip().lower() for d in args.domain if d.strip()]
+        return [_normalize_line(d) for d in args.domain if d.strip()]
     file_path = Path(args.file)
     if not file_path.exists():
         logger.error("Arquivo não encontrado: %s", file_path)
         sys.exit(1)
     with open(file_path, "r", encoding="utf-8") as f:
-        domains = [line.strip().lower() for line in f if line.strip() and not line.startswith("#")]
+        domains = [_normalize_line(line) for line in f if line.strip() and not line.startswith("#")]
     if not domains:
         logger.error("Nenhum domínio encontrado no arquivo %s", file_path)
         sys.exit(1)

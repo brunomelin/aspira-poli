@@ -103,10 +103,13 @@ def transform_ad(asp: dict) -> dict | None:
 
 def transform_competitor(asp: dict) -> dict:
     domain = (asp.get("dominio") or "").strip()
+    # nome_canonico vem de dominios.txt sintaxe 'URL|nome' (preserva case).
+    # Fallback pro domain (URL ou keyword) — backward-compat com dominios sem pipe.
+    nome = (asp.get("nome_canonico") or "").strip() or domain
     raw_ads = asp.get("anuncios") or []
     transformed = [t for t in (transform_ad(a) for a in raw_ads) if t is not None]
     return {
-        "name": domain,
+        "name": nome,
         "ads_library_url": build_ads_library_url(domain),
         "scraped_ads": transformed,
         "_meta": {

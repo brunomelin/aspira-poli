@@ -1,1 +1,21 @@
-https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&is_targeted_country=false&media_type=all&search_type=page&sort_data[mode]=total_impressions&sort_data[direction]=desc&view_all_page_id=1816011248420064
+# Lista de marcas pra scrapear. Uma entrada por linha.
+# Linhas com '#' e linhas vazias são ignoradas.
+#
+# Sintaxe: <URL_ou_dominio>[|<nome_canonico>]
+#
+# A parte ANTES do '|' é a URL/domínio que aspira navega.
+# A parte DEPOIS do '|' (opcional) é o nome canônico da Page —
+# usado pra match exato no autocomplete e como `name` no Poli (em vez
+# da URL inteira no card). Sem o pipe, aspira tenta capturar o nome via
+# og:title/h1 da página (frágil, pode falhar).
+#
+# Recomendação: SEMPRE use a sintaxe com pipe pra URLs com view_all_page_id.
+
+# === Exemplo: URL com view_all_page_id + nome explícito ===
+https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&is_targeted_country=false&media_type=all&search_type=page&sort_data[direction]=desc&sort_data[mode]=total_impressions&view_all_page_id=1816011248420064|Hers
+
+# === Exemplo: domínio puro (keyword search) ===
+sephora.com.br
+
+# === Exemplo: keyword search com nome explícito ===
+# https://www.facebook.com/ads/library/?...&q=Boticario&search_type=keyword_unordered|Boticario
