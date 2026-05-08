@@ -40,6 +40,10 @@ async def create_browser_context(
         "viewport": {"width": 1920, "height": 1080},
         "locale": "pt-BR",
         "timezone_id": "America/Sao_Paulo",
+        # locale só seta navigator.language no JS — Meta usa o header HTTP
+        # Accept-Language pra decidir idioma da renderização. Sem isso, Meta
+        # cai no default en-US apesar de locale=pt-BR.
+        "extra_http_headers": {"Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"},
     }
 
     # Storage state pra Facebook auth (gerado por scripts/login.py).

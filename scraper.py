@@ -82,6 +82,9 @@ async def _worker(
         "viewport": {"width": 1920, "height": 1080},
         "locale": "pt-BR",
         "timezone_id": "America/Sao_Paulo",
+        # locale só seta navigator.language no JS — Meta usa Accept-Language
+        # do request HTTP pra decidir o idioma da renderização da UI.
+        "extra_http_headers": {"Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"},
     }
     # Carrega FB session (gerada por scripts/login.py) pra acessar ads age-restricted
     state_path = Path("storage_state.json")
