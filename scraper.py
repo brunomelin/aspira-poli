@@ -74,15 +74,23 @@ async def _worker(
     lock: asyncio.Lock,
     headless: bool,
 ):
-    context = await browser.new_context(
-        user_agent=(
+    ctx_kwargs: dict = {
+        "user_agent": (
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
         ),
-        viewport={"width": 1920, "height": 1080},
-        locale="pt-BR",
-        timezone_id="America/Sao_Paulo",
-    )
+        "viewport": {"width": 1920, "height": 1080},
+        "locale": "en-US",
+        "timezone_id": "America/New_York",
+    }
+    # Carrega FB session (gerada por scripts/login.py) pra acessar ads age-restricted
+    state_path = Path("storage_state.json")
+    if state_path.exists():
+        ctx_kwargs["storage_state"] = str(state_path)
+        logger.info("[W%d] storage_state.json carregado — login persistente ativo", worker_id)
+    else:
+        logger.info("[W%d] sem storage_state.json — ads 18+ ficam gated", worker_id)
+    context = await browser.new_context(**ctx_kwargs)
     page = await context.new_page()
     await apply_stealth(page)
 
