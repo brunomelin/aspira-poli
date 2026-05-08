@@ -44,9 +44,23 @@ GITHUB_PAT = os.environ.get("GITHUB_PAT")
 GIST_ID = os.environ.get("GIST_ID")
 
 
+_FULL_AD_LIBRARY_PREFIX = "https://www.facebook.com/ads/library/"
+
+
+def is_full_ad_library_url(s: str) -> bool:
+    """True se input já é URL completa da Library (busca por page_id, etc)."""
+    return s.startswith(_FULL_AD_LIBRARY_PREFIX)
+
+
 def build_ads_library_url(domain: str) -> str:
     """Mesma URL que scraper.py usa pra buscar — paridade com country=ALL +
-    keyword_unordered + sort_data."""
+    keyword_unordered + sort_data.
+
+    Se `domain` já é URL completa da Library (busca por page_id), retorna
+    como está em vez de embrulhar em ?q= (que vira keyword search da URL
+    inteira como string e não retorna ads)."""
+    if is_full_ad_library_url(domain):
+        return domain
     return (
         "https://www.facebook.com/ads/library/"
         "?active_status=active&ad_type=all&country=ALL"
