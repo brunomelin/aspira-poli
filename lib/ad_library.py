@@ -156,22 +156,20 @@ async def scrape_domain(page: Page, domain: str) -> dict:
 
 async def _force_country_all(page: Page, domain: str) -> None:
     """Click no dropdown country (top-left) e seleciona 'All / Todos'.
+    Meta renderiza o country picker como <div role=combobox aria-haspopup=listbox>
+    (não <button>). Primeiro combobox da top-bar é o country.
     Tolerante a falha — se locator não encontrar, segue com country atual."""
     try:
-        # Dropdown country — Meta usa div[role=button] com texto do país.
-        # Tentamos múltiplos seletores: BR/Brasil/Brazil em ambos idiomas.
-        candidates = [
-            page.get_by_role("button", name=re.compile(r"^(Brazil|Brasil|BR)$")),
-            page.locator('div[role="button"]').filter(has_text=re.compile(r"^(Brazil|Brasil)$")),
-        ]
+        # Primeiro combobox role+haspopup=listbox = country picker
+        country_dropdown = page.locator(
+            'div[role="combobox"][aria-haspopup="listbox"]'
+        ).first
         clicked = False
-        for cand in candidates:
-            try:
-                await cand.first.click(timeout=3000)
-                clicked = True
-                break
-            except PlaywrightTimeout:
-                continue
+        try:
+            await country_dropdown.click(timeout=4000)
+            clicked = True
+        except PlaywrightTimeout:
+            pass
         if not clicked:
             logger.info("[%s] dropdown country não encontrado — segue com country atual", domain)
             # Debug dump pra inspecionar DOM real (pra ajustar seletor depois)
@@ -194,20 +192,26 @@ async def _force_country_all(page: Page, domain: str) -> None:
                 logger.warning("[%s] falha no debug dump: %s", domain, e)
             return
 
-        await page.wait_for_timeout(600)
+        await page.wait_for_timeout(800)
 
-        # Search field do dropdown — escreve "All"/"Todos" pra filtrar a lista
+        # Listbox aparece após click. Search field interno aceita typing.
         try:
-            search = page.get_by_placeholder(re.compile(r"Pesquisar|Search", re.IGNORECASE))
-            await search.first.fill("All", timeout=2000)
-            await page.wait_for_timeout(400)
+            search = page.locator('input[type="search"], input[placeholder*="Pesquisar" i], input[placeholder*="Search" i]')
+            await search.first.fill("All", timeout=2500)
+            await page.wait_for_timeout(500)
         except PlaywrightTimeout:
-            pass
+            # Sem search input — keyboard fallback
+            try:
+                await page.keyboard.type("All", delay=50)
+                await page.wait_for_timeout(500)
+            except Exception:
+                pass
 
-        # Clica em "All" / "Todos" na lista
-        all_option = page.get_by_text(re.compile(r"^(All|Todos)$")).first
-        await all_option.click(timeout=4000)
-        await page.wait_for_timeout(2000)
+        # Clica em "All" na listbox visível (option role)
+        # Meta usa <div role="option"> com texto "All" no item
+        all_option = page.locator('[role="option"]').filter(has_text=re.compile(r"^(All|Todos)$"))
+        await all_option.first.click(timeout=4000)
+        await page.wait_for_timeout(2500)
         logger.info("[%s] country forçado pra ALL via UI", domain)
     except PlaywrightTimeout:
         logger.warning("[%s] timeout ao forçar country=ALL — segue com country atual", domain)
