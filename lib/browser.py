@@ -28,11 +28,16 @@ async def create_browser_context(
             "--disable-gpu",
         ],
     )
+    # locale/timezone US-East: Meta usa esses sinais (junto com Accept-Language
+    # derivado do locale) pra decidir o country do redirect. Com pt-BR/Sao_Paulo,
+    # Meta força ?country=BR mesmo quando a URL pede ALL — o que zera ads de
+    # marcas não-brasileiras (Hers, etc). Setando en-US/New_York, o redirect
+    # respeita ?country=ALL e servimos ads globais.
     context = await browser.new_context(
         user_agent=USER_AGENT,
         viewport={"width": 1920, "height": 1080},
-        locale="pt-BR",
-        timezone_id="America/Sao_Paulo",
+        locale="en-US",
+        timezone_id="America/New_York",
     )
     return context
 
