@@ -121,12 +121,26 @@ async def scrape_domain(page: Page, domain: str) -> dict:
     await page.goto(url, wait_until="domcontentloaded", timeout=30000)
     await page.wait_for_timeout(3000)
 
+    # Captura o nome canônico da Page renderizada (via og:title / h1) ANTES de
+    # mexer no country picker. Será usado pra match exato no autocomplete depois
+    # do reset, evitando clicar em Page errada (ex: "Hera" no lugar de "Hers").
+    page_name = await page.evaluate(
+        """() => {
+            const og = document.querySelector('meta[property="og:title"]');
+            if (og && og.content) return og.content.trim();
+            const h1 = document.querySelector('h1');
+            return h1 ? h1.innerText.trim() : '';
+        }"""
+    )
+    if page_name:
+        logger.info("[%s] page_name detectado: %r", domain, page_name)
+
     # Meta redireciona ?country=ALL pro country do visitor (BR via IP) mesmo
-    # com locale en-US. Forçamos via UI: click no dropdown country e seleciona
-    # Tudo, depois RECARREGA a URL original — Meta agora tem cookie/state
-    # atualizado e respeita o country=ALL na segunda navegação.
+    # com locale pt-BR. Forçamos via UI: click no dropdown country → "Tudo",
+    # categoria → "Todos os anúncios", e re-submetemos busca clicando na Page
+    # do autocomplete (match exato pelo page_name capturado acima).
     if "country=all" in url.lower() or "country=ALL" in url:
-        await _force_country_all(page, domain, url)
+        await _force_country_all(page, domain, url, page_name)
 
     total_ads = await _extract_ad_count(page, domain)
     advertisers = await _extract_advertisers(page, domain)
@@ -155,7 +169,7 @@ async def scrape_domain(page: Page, domain: str) -> dict:
     }
 
 
-async def _force_country_all(page: Page, domain: str, original_url: str) -> None:
+async def _force_country_all(page: Page, domain: str, original_url: str, page_name: str = "") -> None:
     """Click no dropdown country (top-left) e seleciona 'Tudo / All', depois
     recarrega a URL original pra Meta respeitar country=ALL (cookie/state
     atualizado).
@@ -235,31 +249,46 @@ async def _force_country_all(page: Page, domain: str, original_url: str) -> None
         except PlaywrightTimeout:
             logger.info("[%s] categoria já está em 'Todos os anúncios' (ou dropdown mudou)", domain)
 
-        # Re-submeter a busca clicando na primeira Page do autocomplete (seção
-        # "Anunciantes"). Vai pra ?view_all_page_id da Page exata em vez de
-        # ficar em keyword search — mantém o escopo Page que a URL original
-        # pediu. Estratégia: skip primeira option (que é "Pesquise esta frase
-        # exata") e click na segunda (primeira Page real).
-        # CRÍTICO: aguardar nth(1) visível (Anunciantes carrega async via AJAX
-        # depois do autocomplete principal). Timeout fixo curto pega só a
-        # primeira option = "Pesquise esta frase exata" que NÃO é o que queremos.
+        # Re-submeter a busca clicando na Page do autocomplete (seção
+        # "Anunciantes"). Estratégia em 2 passos:
+        #
+        # 1) Match exato pelo page_name capturado da renderização original
+        #    (og:title / h1). Evita pegar Page errada quando autocomplete
+        #    rankeia por relevância (ex: "Hera" antes de "Hers").
+        # 2) Fallback: primeira Page (nth(1), skipando "Pesquise frase exata").
+        #
+        # Aguarda até 8s pela 2ª option ficar visível — Anunciantes carregam
+        # async via AJAX após o autocomplete inicial.
         try:
             search_input = page.locator('input[type="search"]').first
             await search_input.click(timeout=3000)
 
-            # Aguarda 2ª option ficar visível — indica que Anunciantes carregaram
             second_option = page.locator('[role="option"]').nth(1)
             try:
                 await second_option.wait_for(state="visible", timeout=8000)
-                await second_option.click(timeout=2000)
-                logger.info("[%s] primeira Page clicada no autocomplete (skip 'Pesquise frase exata')", domain)
-                await page.wait_for_timeout(2500)
             except PlaywrightTimeout:
-                # Anunciantes não carregaram — fallback: Enter
-                logger.info("[%s] autocomplete só tem 'Pesquise frase exata' — Enter (fallback)", domain)
-                await search_input.focus(timeout=2000)
-                await page.keyboard.press("Enter")
-                await page.wait_for_timeout(2500)
+                logger.info("[%s] autocomplete sem Anunciantes em 8s", domain)
+                return
+
+            target = (page_name or "").strip().lower()
+            options = page.locator('[role="option"]')
+            count = await options.count()
+            matched_idx = -1
+            if target:
+                for i in range(count):
+                    txt = (await options.nth(i).inner_text()).split("\n", 1)[0].strip().lower()
+                    if txt == target:
+                        matched_idx = i
+                        break
+
+            if matched_idx >= 0:
+                await options.nth(matched_idx).click(timeout=2000)
+                logger.info("[%s] match exato: clicou Anunciante %r (option %d)", domain, page_name, matched_idx)
+            else:
+                # Fallback: primeira Page (nth(1)), skipando "Pesquise frase exata"
+                await second_option.click(timeout=2000)
+                logger.info("[%s] sem match exato pra %r — fallback: primeiro Anunciante (option 1)", domain, page_name)
+            await page.wait_for_timeout(2500)
         except PlaywrightTimeout:
             logger.warning("[%s] timeout ao re-submeter busca", domain)
         except Exception as e:
