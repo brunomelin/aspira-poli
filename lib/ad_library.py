@@ -494,6 +494,25 @@ async def _extract_ads_from_cards(page: Page, domain: str, video_map: Optional[d
                 const idMatch = cardText.match(/(?:da biblioteca|Library ID):\s*(\d+)/);
                 if (idMatch) adId = idMatch[1];
 
+                // Status ativo: pill "Ativo" / "Active" no topo do card. Default null se ambíguo.
+                let isActive = null;
+                if (/^\s*(✓\s*)?(Ativo|Active)\b/m.test(cardText)) isActive = true;
+                else if (/^\s*(✗\s*)?(Inativo|Inactive|Removido|Not active)\b/m.test(cardText)) isActive = false;
+
+                // Data início veiculação: "Veiculação iniciada em 1 de abr de 2026" (PT)
+                // ou "Started running on Apr 1, 2026" (EN). Mandamos raw — push_to_app parseia.
+                let startDateRaw = '';
+                const ptDate = cardText.match(/Veicula[çc][aã]o iniciada em\s+([^\n]+?)(?:\n|$)/);
+                const enDate = cardText.match(/Started running on\s+([^\n]+?)(?:\n|$)/);
+                if (ptDate) startDateRaw = ptDate[1].trim();
+                else if (enDate) startDateRaw = enDate[1].trim();
+
+                // Variantes: "2 anúncios usam esse criativo e esse texto" / "2 ads use this creative and text"
+                let variantsCount = 1;
+                const vMatch = cardText.match(/(\d+)\s+an[uú]ncios?\s+usam\s+esse\s+criativo/i)
+                    || cardText.match(/(\d+)\s+ads?\s+use\s+this\s+creative/i);
+                if (vMatch) variantsCount = parseInt(vMatch[1], 10) || 1;
+
                 let advertiser = '';
                 const sponsoredMatch = cardText.match(/(?:Abrir menu suspenso|Open dropdown)\s*(?:Ver [\s\S]*?do anúncio|See ad details)\s*([^\n]+?)\s*Patrocinado/);
                 if (sponsoredMatch) {
@@ -588,6 +607,9 @@ async def _extract_ads_from_cards(page: Page, domain: str, video_map: Optional[d
                     video_url: videoUrl,
                     video_hd_url: videoHdUrl,
                     thumbnail_url: thumbnailUrl,
+                    is_active: isActive,
+                    start_date_raw: startDateRaw,
+                    variants_count: variantsCount,
                 });
             }
             return results;

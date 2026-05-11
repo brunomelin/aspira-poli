@@ -94,11 +94,51 @@ def transform_ad(asp: dict) -> dict | None:
         "library_id": ad_id,
         "advertiser_name": (asp.get("anunciante") or "").strip() or None,
         "advertiser_page": None,
-        "start_date": None,
-        "is_active": True,
+        "start_date": _parse_start_date(asp.get("start_date_raw") or ""),
+        "is_active": asp.get("is_active") if asp.get("is_active") is not None else True,
         "video_url": video_url,
         "video_quality": video_quality,
+        "variants_count": int(asp.get("variants_count") or 1),
     }
+
+
+_PT_MONTHS = {
+    "jan": 1, "fev": 2, "mar": 3, "abr": 4, "mai": 5, "jun": 6,
+    "jul": 7, "ago": 8, "set": 9, "out": 10, "nov": 11, "dez": 12,
+}
+_EN_MONTHS = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+
+
+def _parse_start_date(raw: str) -> str | None:
+    """Parseia data raw da Meta pra ISO YYYY-MM-DD.
+    Aceita: '1 de abr de 2026', '01/04/2026', 'Apr 1, 2026', 'April 1, 2026'."""
+    if not raw:
+        return None
+    s = raw.strip().lower()
+    import re as _re
+    # Formato PT: "1 de abr de 2026" ou "01 de abril de 2026"
+    m = _re.match(r"(\d{1,2})\s+de\s+([a-zç]+)\.?\s+de\s+(\d{4})", s)
+    if m:
+        day, mon_name, year = int(m.group(1)), m.group(2)[:3], int(m.group(3))
+        if mon_name in _PT_MONTHS:
+            return f"{year:04d}-{_PT_MONTHS[mon_name]:02d}-{day:02d}"
+    # Formato EN: "Apr 1, 2026" ou "April 1, 2026"
+    m = _re.match(r"([a-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})", s)
+    if m:
+        mon_name, day, year = m.group(1)[:3], int(m.group(2)), int(m.group(3))
+        if mon_name in _EN_MONTHS:
+            return f"{year:04d}-{_EN_MONTHS[mon_name]:02d}-{day:02d}"
+    # Formato numérico DD/MM/YYYY (PT) ou MM/DD/YYYY (EN — ambíguo, vou pular)
+    m = _re.match(r"(\d{1,2})/(\d{1,2})/(\d{4})", s)
+    if m:
+        # Assume DD/MM/YYYY (PT-BR predominant nas marcas BR)
+        day, mon, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if 1 <= mon <= 12 and 1 <= day <= 31:
+            return f"{year:04d}-{mon:02d}-{day:02d}"
+    return None
 
 
 def transform_competitor(asp: dict) -> dict:
